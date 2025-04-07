@@ -64,36 +64,37 @@ export default function SignUp() {
     "Analytics",
     "Other",
   ])
-
   useEffect(() => {
     const fetchCategories = async () => {
       try {
         // Fetch all videos to extract unique categories
         const videosCollection = collection(db, "videos")
         const videoSnapshot = await getDocs(videosCollection)
-
+  
         // Extract unique categories
         const uniqueCategories = new Set<string>()
         videoSnapshot.docs.forEach((doc) => {
           const category = doc.data().category
-          if (category) uniqueCategories.add(category)
+          if (category && category !== "General" && category !== "Other") {
+            uniqueCategories.add(category)
+          }
         })
-
-        // Add default categories if none exist yet
+  
+        // Add default message if no valid categories exist
         if (uniqueCategories.size === 0) {
           setCategories(["none added"])
         } else {
-          // Make sure "Other" is always an option
-          uniqueCategories.add("Other")
+          // Convert Set to Array and set state
           setCategories(Array.from(uniqueCategories))
         }
       } catch (error) {
         console.error("Error fetching categories:", error)
       }
     }
-
+  
     fetchCategories()
   }, [])
+  
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)

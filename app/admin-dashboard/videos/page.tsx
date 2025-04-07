@@ -247,8 +247,7 @@ export default function VideosPage() {
             <TableRow>
               <TableHead>Title</TableHead>
               <TableHead>Category</TableHead>
-              <TableHead>Views</TableHead>
-              <TableHead>Watch Time (hours)</TableHead>
+           
               <TableHead>Created At</TableHead>
               <TableHead className="w-[100px]">Actions</TableHead>
             </TableRow>
@@ -271,8 +270,7 @@ export default function VideosPage() {
                 <TableRow key={video.id}>
                   <TableCell className="font-medium">{video.title}</TableCell>
                   <TableCell>{video.category || "Uncategorized"}</TableCell>
-                  <TableCell>{video.views}</TableCell>
-                  <TableCell>{video.watchTime}</TableCell>
+             
                   <TableCell>
                     {video.createdAt && video.createdAt.seconds
                       ? format(new Date(video.createdAt.seconds * 1000), "PPP")

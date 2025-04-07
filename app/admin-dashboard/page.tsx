@@ -461,7 +461,7 @@ export default function AdminDashboard() {
         ) : (
           <motion.div variants={containerVariants} initial="hidden" animate="visible">
             {/* Overview Cards */}
-            <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8" variants={itemVariants}>
+            <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8" variants={itemVariants}>
               <Card className="overflow-hidden border-t-4 border-t-green-500 shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -473,27 +473,6 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
 
-              <Card className="overflow-hidden border-t-4 border-t-blue-500 shadow-sm hover:shadow-md transition-shadow">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Users with Playlists</CardTitle>
-                  <PlayCircle className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{userStats.usersWithPlaylists}</div>
-                  <p className="text-xs text-muted-foreground">Active users</p>
-                </CardContent>
-              </Card>
-
-              <Card className="overflow-hidden border-t-4 border-t-purple-500 shadow-sm hover:shadow-md transition-shadow">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Total Playlists</CardTitle>
-                  <Video className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{userStats.totalPlaylists}</div>
-                  <p className="text-xs text-muted-foreground">Created playlists</p>
-                </CardContent>
-              </Card>
 
               <Card className="overflow-hidden border-t-4 border-t-orange-500 shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
