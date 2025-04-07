@@ -179,46 +179,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-border/50">
-          <CardHeader className="border-b bg-muted/30 pb-4">
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-primary" />
-              Notification Settings
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="flex items-center justify-between py-2">
-                <div className="space-y-0.5">
-                  <Label>Email Notifications</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Receive email notifications for new feedback and recommendations
-                  </p>
-                </div>
-                <Switch
-                  checked={settings.emailNotifications}
-                  onCheckedChange={(checked) =>
-                    setSettings({ ...settings, emailNotifications: checked })
-                  }
-                />
-              </div>
-              <div className="flex items-center justify-between py-2">
-                <div className="space-y-0.5">
-                  <Label>Auto-Play Videos</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Automatically play videos when they come into view
-                  </p>
-                </div>
-                <Switch
-                  checked={settings.autoPlayVideos}
-                  onCheckedChange={(checked) =>
-                    setSettings({ ...settings, autoPlayVideos: checked })
-                  }
-                />
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+    
 
         <div className="flex justify-end mt-6">
           <Button 
@@ -227,7 +188,7 @@ export default function SettingsPage() {
             className="bg-primary hover:bg-primary/90 text-white px-6"
           >
             {loading ? (
-              <>
+              <>Not
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Saving...
               </>
