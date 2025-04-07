@@ -28,11 +28,11 @@ const navigation = [
   { name: "Dashboard", href: "/admin-dashboard", icon: LayoutDashboard },
   { name: "Videos", href: "/admin-dashboard/videos", icon: Video },
   { name: "Upload", href: "/admin-dashboard/upload", icon: Upload },
-  { name: "Analytics", href: "/admin-dashboard/analytics", icon: BarChart },
+
   { name: "Feedback", href: "/admin-dashboard/feedback", icon: MessageSquare },
  
   { name: "Individual", href: "/admin-dashboard/individual", icon: LineChart },
-  { name: "Settings", href: "/admin-dashboard/settings", icon: Settings },
+
 ]
 
 export default function AdminDashboardLayout({
