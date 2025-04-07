@@ -288,21 +288,27 @@ export default function IndividualAnalyticsPage() {
         }
 
         // Process company analytics
-        const companyName = userData.companyName || "Unknown Company"
+       // Process company analytics
+const companyName = userData.companyName || "Unknown Company"
+const companyKey = companyName.toLowerCase() // Use lowercase as the key
 
-        if (!companyAnalyticsMap.has(companyName)) {
-          companyAnalyticsMap.set(companyName, {
-            name: companyName,
-            userCount: 0,
-            totalWatchTime: "0s",
-            totalWatchTimeSeconds: 0,
-            averageCompletionRate: 0,
-            videoCount: 0,
-            lastActive: formatDate(event.watchedAt.seconds),
-            lastActiveTimestamp: event.watchedAt.seconds,
-            users: [],
-          })
-        }
+if (!companyAnalyticsMap.has(companyKey)) {
+  companyAnalyticsMap.set(companyKey, {
+    name: companyName, // Keep the original name for display
+    userCount: 0,
+    totalWatchTime: "0s",
+    totalWatchTimeSeconds: 0,
+    averageCompletionRate: 0,
+    videoCount: 0,
+    lastActive: formatDate(event.watchedAt.seconds),
+    lastActiveTimestamp: event.watchedAt.seconds,
+    users: [],
+  })
+}
+
+// When accessing company data
+const companyAnalytics = companyAnalyticsMap.get(companyKey)!
+
       })
 
       // Convert user analytics map to array
@@ -311,9 +317,11 @@ export default function IndividualAnalyticsPage() {
       // Process company analytics
       userAnalyticsArray.forEach((user) => {
         const companyName = user.companyName || "Unknown Company"
+        const companyKey = companyName.toLowerCase()
 
-        if (companyAnalyticsMap.has(companyName)) {
-          const companyAnalytics = companyAnalyticsMap.get(companyName)!
+        
+           if (companyAnalyticsMap.has(companyKey)) {
+             const companyAnalytics = companyAnalyticsMap.get(companyKey)!
 
           // Add user if not already in the company's users array
           if (!companyAnalytics.users.some((u) => u.id === user.id)) {
@@ -335,9 +343,10 @@ export default function IndividualAnalyticsPage() {
           }
         }
       })
-
+      
       // Calculate average completion rate for each company
       companyAnalyticsMap.forEach((company) => {
+        
         const totalCompletionRate = company.users.reduce((sum, user) => sum + user.completionRate, 0)
         company.averageCompletionRate = company.users.length > 0 ? totalCompletionRate / company.users.length : 0
       })
