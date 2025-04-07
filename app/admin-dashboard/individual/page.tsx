@@ -163,6 +163,64 @@ export default function IndividualAnalyticsPage() {
       const userAnalyticsMap = new Map<string, UserAnalytics>()
       const companyAnalyticsMap = new Map<string, CompanyAnalytics>()
 
+      // Create a map to track video watch data by user and video
+      const videoWatchMap = new Map<
+        string,
+        Map<
+          string,
+          {
+            watchTimeSeconds: number
+            progressPercentage: number
+            completed: boolean
+            lastWatchedTimestamp: number
+          }
+        >
+      >()
+
+      // First pass: collect all watch events by user and video
+      events.forEach((event) => {
+        const userId = event.userId
+        const videoId = event.videoId
+
+        if (!videoWatchMap.has(userId)) {
+          videoWatchMap.set(userId, new Map())
+        }
+
+        const userVideos = videoWatchMap.get(userId)!
+
+        if (!userVideos.has(videoId)) {
+          userVideos.set(videoId, {
+            watchTimeSeconds: 0,
+            progressPercentage: 0,
+            completed: false,
+            lastWatchedTimestamp: event.watchedAt.seconds,
+          })
+        }
+
+        const videoData = userVideos.get(videoId)!
+
+        // Update watch time
+        if (event.watchDuration) {
+          videoData.watchTimeSeconds += event.watchDuration
+        }
+
+        // Update completion status
+        if (event.completed) {
+          videoData.completed = true
+        }
+
+        // Update progress percentage if higher
+        if (event.progressPercentage && event.progressPercentage > videoData.progressPercentage) {
+          videoData.progressPercentage = event.progressPercentage
+        }
+
+        // Update last watched timestamp if more recent
+        if (event.watchedAt.seconds > videoData.lastWatchedTimestamp) {
+          videoData.lastWatchedTimestamp = event.watchedAt.seconds
+        }
+      })
+
+      // Second pass: process events to build user analytics
       events.forEach((event) => {
         const userId = event.userId
         const userData = userMap.get(userId)
@@ -184,68 +242,50 @@ export default function IndividualAnalyticsPage() {
             lastActiveTimestamp: event.watchedAt.seconds,
             viewedVideos: [],
           })
-        }
 
-        const userAnalytics = userAnalyticsMap.get(userId)!
+          // Add all videos watched by this user
+          const userVideos = videoWatchMap.get(userId)
+          if (userVideos) {
+            const userAnalytics = userAnalyticsMap.get(userId)!
+            let totalWatchTimeSeconds = 0
 
-        // Update user's total watch time
-        if (event.watchDuration) {
-          userAnalytics.timeWatchedSeconds += event.watchDuration
-          userAnalytics.timeWatched = formatTime(userAnalytics.timeWatchedSeconds)
+            userVideos.forEach((videoData, videoId) => {
+              // Find the event with this videoId to get title and other metadata
+              const videoEvent = events.find((e) => e.videoId === videoId && e.userId === userId)
+              if (!videoEvent) return
+
+              totalWatchTimeSeconds += videoData.watchTimeSeconds
+
+              userAnalytics.viewedVideos.push({
+                id: videoId,
+                title: videoEvent.videoTitle || "Unknown Video",
+                watchTime: formatTime(videoData.watchTimeSeconds),
+                watchTimeSeconds: videoData.watchTimeSeconds,
+                completion: videoData.completed ? "100%" : `${Math.round(videoData.progressPercentage)}%`,
+                completionRate: videoData.completed ? 1 : videoData.progressPercentage / 100,
+                lastWatched: formatDate(videoData.lastWatchedTimestamp),
+                lastWatchedTimestamp: videoData.lastWatchedTimestamp,
+                category: videoEvent.category || "Uncategorized",
+              })
+            })
+
+            userAnalytics.videoCount = userAnalytics.viewedVideos.length
+            userAnalytics.timeWatchedSeconds = totalWatchTimeSeconds
+            userAnalytics.timeWatched = formatTime(totalWatchTimeSeconds)
+
+            // Calculate overall completion rate
+            const completedVideos = userAnalytics.viewedVideos.filter((v) => v.completionRate >= 0.9).length
+            userAnalytics.completionRate =
+              userAnalytics.viewedVideos.length > 0 ? completedVideos / userAnalytics.viewedVideos.length : 0
+          }
         }
 
         // Update last active time if this event is more recent
+        const userAnalytics = userAnalyticsMap.get(userId)!
         if (event.watchedAt.seconds > userAnalytics.lastActiveTimestamp) {
           userAnalytics.lastActive = formatDate(event.watchedAt.seconds)
           userAnalytics.lastActiveTimestamp = event.watchedAt.seconds
         }
-
-        // Add video to user's viewed videos if not already there
-        const videoIndex = userAnalytics.viewedVideos.findIndex((v) => v.id === event.videoId)
-
-        if (videoIndex === -1 && event.eventType === "play") {
-          userAnalytics.videoCount++
-          userAnalytics.viewedVideos.push({
-            id: event.videoId,
-            title: event.videoTitle || "Unknown Video",
-            watchTime: formatTime(event.watchDuration || 0),
-            watchTimeSeconds: event.watchDuration || 0,
-            completion: event.completed ? "100%" : `${Math.round(event.progressPercentage || 0)}%`,
-            completionRate: event.completed ? 1 : (event.progressPercentage || 0) / 100,
-            lastWatched: formatDate(event.watchedAt.seconds),
-            lastWatchedTimestamp: event.watchedAt.seconds,
-            category: event.category || "Uncategorized",
-          })
-        } else if (videoIndex !== -1) {
-          // Update existing video data
-          const videoData = userAnalytics.viewedVideos[videoIndex]
-
-          // Update watch time
-          if (event.watchDuration) {
-            videoData.watchTimeSeconds += event.watchDuration
-            videoData.watchTime = formatTime(videoData.watchTimeSeconds)
-          }
-
-          // Update completion if this event has a higher completion rate
-          if (
-            event.completed ||
-            (event.progressPercentage && event.progressPercentage / 100 > videoData.completionRate)
-          ) {
-            videoData.completion = event.completed ? "100%" : `${Math.round(event.progressPercentage || 0)}%`
-            videoData.completionRate = event.completed ? 1 : (event.progressPercentage || 0) / 100
-          }
-
-          // Update last watched time if this event is more recent
-          if (event.watchedAt.seconds > videoData.lastWatchedTimestamp) {
-            videoData.lastWatched = formatDate(event.watchedAt.seconds)
-            videoData.lastWatchedTimestamp = event.watchedAt.seconds
-          }
-        }
-
-        // Calculate overall completion rate for user
-        const completedVideos = userAnalytics.viewedVideos.filter((v) => v.completionRate >= 0.9).length
-        userAnalytics.completionRate =
-          userAnalytics.viewedVideos.length > 0 ? completedVideos / userAnalytics.viewedVideos.length : 0
 
         // Process company analytics
         const companyName = userData.companyName || "Unknown Company"
@@ -857,7 +897,7 @@ export default function IndividualAnalyticsPage() {
 
       {/* User Details Dialog */}
       <Dialog open={userDetailsOpen} onOpenChange={setUserDetailsOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl">User Analytics: {selectedUser?.name || selectedUser?.email}</DialogTitle>
           </DialogHeader>
@@ -1019,7 +1059,7 @@ export default function IndividualAnalyticsPage() {
 
       {/* Company Details Dialog */}
       <Dialog open={companyDetailsOpen} onOpenChange={setCompanyDetailsOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl">Company Analytics: {selectedCompany?.name}</DialogTitle>
           </DialogHeader>

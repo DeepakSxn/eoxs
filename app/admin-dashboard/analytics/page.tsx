@@ -179,6 +179,7 @@ export default function AnalyticsPage() {
       {
         views: number
         watchTime: number
+        totalDuration: number
         engagement: number
       }
     >()
@@ -186,9 +187,12 @@ export default function AnalyticsPage() {
     // Process all events to calculate stats
     events.forEach((event) => {
       if (!videoStatsMap.has(event.videoId)) {
+        // Find the video to get its duration
+        const video = videos.find((v) => v.id === event.videoId)
         videoStatsMap.set(event.videoId, {
           views: 0,
           watchTime: 0,
+          totalDuration: video?.duration || 0,
           engagement: 0,
         })
       }
@@ -212,8 +216,15 @@ export default function AnalyticsPage() {
         const stats = videoStatsMap.get(video.id)
         if (stats) {
           // Calculate engagement as percentage of watch time relative to video duration
-          const totalPossibleWatchTime = (video.duration || 0) * stats.views
-          const engagement = totalPossibleWatchTime > 0 ? stats.watchTime / totalPossibleWatchTime : 0
+          // If we have views but no duration info, use a reasonable estimate
+          const videoDuration = video.duration || 0
+          const totalPossibleWatchTime =
+            videoDuration > 0
+              ? (videoDuration * stats.views) / 3600
+              : // Convert to hours
+                stats.views * 0.1 // Assume 6 minutes (0.1 hours) per view if no duration
+
+          const engagement = totalPossibleWatchTime > 0 ? Math.min(stats.watchTime / totalPossibleWatchTime, 1) : 0
 
           return {
             ...video,
@@ -346,13 +357,15 @@ export default function AnalyticsPage() {
 
   // Calculate summary statistics
   const totalViews = watchEvents.filter((event) => event.eventType === "play").length
-  const totalWatchTime =
-    watchEvents
-      .filter((event) => event.eventType === "watchDuration")
-      .reduce((sum, event) => sum + (event.watchDuration || 0), 0) / 3600 // Convert to hours
+  const totalWatchTime = watchEvents.reduce((sum, event) => sum + (event.watchDuration || 0), 0) / 3600 // Convert to hours
 
+  const videosWithEngagement = videos.filter(
+    (video) => typeof video.engagement === "number" && !isNaN(video.engagement),
+  )
   const averageEngagement =
-    videos.length > 0 ? videos.reduce((sum, video) => sum + (video.engagement || 0), 0) / videos.length : 0
+    videosWithEngagement.length > 0
+      ? videosWithEngagement.reduce((sum, video) => sum + (video.engagement || 0), 0) / videosWithEngagement.length
+      : 0
   const averageWatchTime = videos.length > 0 ? totalWatchTime / videos.length : 0
 
   // Get top performing videos based on views from watch events
