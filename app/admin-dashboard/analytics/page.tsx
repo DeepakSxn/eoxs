@@ -204,7 +204,7 @@ export default function AnalyticsPage() {
         stats.views += 1
       }
 
-      // Add watch duration to total watch time
+      // Add watch duration to total watch times
       if (event.watchDuration) {
         stats.watchTime += event.watchDuration / 3600 // Convert seconds to hours
       }

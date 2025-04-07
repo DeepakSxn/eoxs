@@ -107,7 +107,7 @@ export default function Dashboard() {
             : "/placeholder.svg", // Fallback thumbnail
           description: doc.data().description || "No description available",
           category: doc.data().category || "Uncategorized",
-        })) as Video[]
+        })) as unknown as Video[]
 
         // Extract all unique categories and tags
         const categories = new Set<string>()
@@ -167,11 +167,7 @@ export default function Dashboard() {
     }
 
     // Apply category/tag filter
-    if (activeFilter) {
-      filtered = filtered.filter(
-        (video) => video.category === activeFilter || (video.tags && video.tags.includes(activeFilter)),
-      )
-    }
+    
 
     setFilteredVideos(filtered)
   }, [searchQuery, videos, activeFilter])
@@ -362,7 +358,7 @@ export default function Dashboard() {
       <header className="border-b">
         <div className="container flex h-14 items-center px-4">
           <div className="mr-4">
-            <Logo width={100} height={32} />
+            <Logo />
           </div>
           <div className="ml-auto flex items-center gap-4">
             {userProfession && userProfession !== "Other" && (
@@ -397,24 +393,7 @@ export default function Dashboard() {
               />
             </div>
 
-            <div className="flex gap-2">
-              <select
-                className="px-3 py-2 rounded-md border border-input bg-background text-sm"
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-              >
-                <option value="All">All Categories</option>
-                {categories.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-
-              <Button variant="outline" size="icon" className="shrink-0">
-                <Filter className="h-4 w-4" />
-              </Button>
-            </div>
+          
           </div>
 
           {loading ? (
