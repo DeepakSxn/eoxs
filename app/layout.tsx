@@ -1,6 +1,7 @@
 import type React from "react"
 import type { Metadata } from "next"
 import "./globals.css"
+import "./styles/auth-background.css"
 import { ThemeProvider } from "./theme-provider"
 import { AuthProvider } from "./context/AuthContext"
 
