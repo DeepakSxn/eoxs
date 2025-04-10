@@ -4,26 +4,14 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import {
-  collection,
-  addDoc,
-  serverTimestamp,
-  doc,
-  getDoc,
-  query,
-  where,
-  getDocs,
-  updateDoc,
-  increment,
-} from "firebase/firestore"
-import { auth, db } from "../firebase"
+import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs, orderBy } from "firebase/firestore"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { ThemeToggle } from "../theme-toggle"
-import { Logo } from "../components/logo"
+
 import { Badge } from "@/components/ui/badge"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import {
@@ -37,15 +25,16 @@ import {
   Maximize,
   Minimize,
   MessageSquare,
+  Info,
   ArrowLeft,
   Lock,
   CheckCircle,
-  Star,
-  FastForward,
 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
-import { signOut } from "firebase/auth"
-import { Label } from "@/components/ui/label"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Logo } from "../components/logo"
+import { auth, db } from "../firebase"
+import { ThemeToggle } from "../theme-toggle"
 
 interface Video {
   id: string
@@ -73,14 +62,12 @@ interface Playlist {
   userEmail?: string
 }
 
-interface LastWatchedVideo {
+// Define an interface for the document data
+interface VideoWatchEvent {
   videoId: string
-  playlistId: string
-}
-
-interface VideoFeedback {
-  rating: number
-  comment: string
+  playlistId?: string
+  watchedAt: any
+  // Add other properties as needed
 }
 
 export default function VideoPlayerPage() {
@@ -103,34 +90,90 @@ export default function VideoPlayerPage() {
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [feedback, setFeedback] = useState("")
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
+  const [videoInfoOpen, setVideoInfoOpen] = useState(false)
   const [watchStartTime, setWatchStartTime] = useState<number | null>(null)
   const [videoWatchEvents, setVideoWatchEvents] = useState<Record<string, boolean | null>>({})
   const [videoProgress, setVideoProgress] = useState<Record<string, number>>({})
+  const [videoProgressMilestones, setVideoProgressMilestones] = useState<Record<string, number[]>>({})
   const [modules, setModules] = useState<Module[]>([])
   const [activeModuleIndex, setActiveModuleIndex] = useState<number | null>(null)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [userProfessions, setUserProfessions] = useState<string[]>([])
+  const [lastWatchedVideoId, setLastWatchedVideoId] = useState<string | null>(null)
+
+  const [videoRating, setVideoRating] = useState<number | null>(null)
+  const [videoFeedback, setVideoFeedback] = useState("")
   const [videoFeedbackOpen, setVideoFeedbackOpen] = useState(false)
-  const [videoFeedback, setVideoFeedback] = useState<VideoFeedback>({ rating: 0, comment: "" })
   const [submittingVideoFeedback, setSubmittingVideoFeedback] = useState(false)
-  const [videoProgressMilestones, setVideoProgressMilestones] = useState<Record<string, number[]>>({})
-  const [lockProcessComplete, setLockProcessComplete] = useState(false)
+  const [videoFeedbacks, setVideoFeedbacks] = useState<any[]>([])
+  const [showVideoFeedbacks, setShowVideoFeedbacks] = useState(false)
+
+  // Add playbackRate state and handlers
+  const [playbackRate, setPlaybackRate] = useState(1)
+  const [speedMenuOpen, setSpeedMenuOpen] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const videoChangeRef = useRef<boolean>(false)
 
-  // Check if user is admin
-  useEffect(() => {
-    if (user) {
-      // Check if user email contains admin or is in admin list
-      const isUserAdmin =
-        user.email && (user.email.includes("admin") || ["admin@eoxs.com", "test@test.com"].includes(user.email))
-      setIsAdmin(isUserAdmin)
-    }
-  }, [user])
 
-  // Update the fetchLastWatchedVideo function to use the new interface
-  const fetchLastWatchedVideo = async (userId: string): Promise<LastWatchedVideo | null> => {
+  useEffect(() => {
+    // Check if user is authenticated
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser)
+
+        
+        // Fetch last watched video if no specific videoId is provided
+        if (!videoId) {
+          const lastWatched = await fetchLastWatchedVideo(currentUser.uid)
+          if (lastWatched) {
+            setLastWatchedVideoId(lastWatched.videoId)
+            // If we have a playlistId, use it, otherwise fetch the video directly
+            if (playlistId) {
+              fetchPlaylist(playlistId, lastWatched.videoId)
+              fetchWatchHistory()
+
+            } else {
+              // Redirect to the video player with the last watched video
+              router.push(
+                `/video-player?videoId=${lastWatched.videoId}${playlistId ? `&playlistId=${playlistId}` : ""}`,
+              )
+            }
+          } else if (playlistId) {
+            // If no last watched video but we have a playlistId, fetch the playlist
+            fetchPlaylist(playlistId)
+            fetchWatchHistory()
+
+          }
+        } else if (playlistId) {
+          // If we have both videoId and playlistId, fetch the playlist
+          fetchPlaylist(playlistId, videoId)
+          
+        }
+      } else {
+        // Redirect to login if not authenticated
+        router.push("/login")
+      }
+    })
+
+    return () => unsubscribe()
+  }, [router, playlistId, videoId])
+
+  useEffect(() => {
+    if (playlist && user) {
+      fetchWatchHistory()
+    }
+  }, [playlist, user])
+
+  useEffect(() => {
+    if (currentVideo && currentVideo.id) {
+      unlockNextVideoIfNeeded(currentVideo.id)
+    }
+  }, [videoWatchEvents, currentVideo])
+  
+
+  // Fetch the last watched video for a user
+  const fetchLastWatchedVideo = async (userId: string) => {
     try {
       const watchHistoryQuery = query(
         collection(db, "videoWatchEvents"),
@@ -142,16 +185,16 @@ export default function VideoPlayerPage() {
 
       if (watchHistorySnapshot.empty) return null
 
-      // Sort by timestamp to get the most recent
+      // Explicitly type the mapped data
       const sortedEvents = watchHistorySnapshot.docs
         .map((doc) => ({
-          ...doc.data(),
+          ...(doc.data() as VideoWatchEvent),
           id: doc.id,
           watchedAt: doc.data().watchedAt?.toDate() || new Date(0),
         }))
         .sort((a, b) => b.watchedAt - a.watchedAt)
 
-      if (sortedEvents.length > 0 && sortedEvents[0].videoId && sortedEvents[0].playlistId) {
+      if (sortedEvents.length > 0) {
         return {
           videoId: sortedEvents[0].videoId,
           playlistId: sortedEvents[0].playlistId,
@@ -165,63 +208,11 @@ export default function VideoPlayerPage() {
     }
   }
 
-  // Update the useEffect that uses fetchLastWatchedVideo to handle the return type properly
   useEffect(() => {
-    // Check for navigation flag
-    const navigationOccurred = sessionStorage.getItem("navigationOccurred")
-    let unsubscribe: () => void = () => {} // Initialize unsubscribe
-
-    if (navigationOccurred === "true") {
-      // Clear the flag
-      sessionStorage.removeItem("navigationOccurred")
-      // Log out the user
-      signOut(auth).then(() => {
-        router.push("/login")
-      })
-      return
-    }
-
-    // Check if user is authenticated
-    unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser)
-
-        // Fetch last watched video if no specific videoId is provided
-        if (!videoId) {
-          const lastWatched = await fetchLastWatchedVideo(currentUser.uid)
-          if (lastWatched && lastWatched.videoId) {
-            // If we have a playlistId, use it, otherwise fetch the video directly
-            if (playlistId) {
-              fetchPlaylist(playlistId, lastWatched.videoId)
-            } else if (lastWatched.playlistId) {
-              // Redirect to the video player with the last watched video and its playlist
-              router.push(`/video-player?videoId=${lastWatched.videoId}&playlistId=${lastWatched.playlistId}`)
-            } else {
-              // Just redirect to the video without a playlist
-              router.push(`/video-player?videoId=${lastWatched.videoId}`)
-            }
-          } else if (playlistId) {
-            // If no last watched video but we have a playlistId, fetch the playlist
-            fetchPlaylist(playlistId)
-          }
-        } else if (playlistId) {
-          // If we have both videoId and playlistId, fetch the playlist
-          fetchPlaylist(playlistId, videoId)
-        }
-      } else {
-        // Redirect to login if not authenticated
-        router.push("/login")
-      }
-    })
-
-    return () => unsubscribe()
-  }, [router, playlistId, videoId])
-
-  useEffect(() => {
-    if (currentVideo && lockProcessComplete) {
+    if (currentVideo && currentVideo.id) {
       checkAndSetVideoWatched(currentVideo.id)
     }
-  }, [currentVideo, lockProcessComplete])
+  }, [currentVideo])
 
   useEffect(() => {
     // Set up fullscreen change event listener
@@ -235,29 +226,27 @@ export default function VideoPlayerPage() {
 
   useEffect(() => {
     // Initialize current video only when necessary
-    if (
-      playlist?.videos &&
-      Array.isArray(playlist.videos) &&
-      playlist.videos.length > 0 &&
-      videoId &&
-      lockProcessComplete
-    ) {
-      const index = playlist.videos.findIndex((v) => v && v.id === videoId)
+    if (playlist?.videos && Array.isArray(playlist.videos) && playlist.videos.length > 0 && videoId) {
+      const index = playlist.videos.findIndex((v) => v.id === videoId)
 
       // Guard against invalid videoId
       if (index === -1) {
-        router.push("/dashboard")
-        return
-      }
+        // If videoId not found, start with the first video
+        videoChangeRef.current = true
+        setCurrentVideoIndex(0)
+        setCurrentVideo(playlist.videos[0])
 
-      // Only update state if video changed
-      if (currentVideo?.id !== videoId || currentVideoIndex !== index) {
+        // Update URL to reflect the first video
+        const newUrl = `/video-player?videoId=${playlist.videos[0].id}&playlistId=${playlistId}`
+        window.history.pushState({}, "", newUrl)
+      } else if (currentVideo?.id !== videoId || currentVideoIndex !== index) {
+        // Only update state if video changed
         videoChangeRef.current = true
         setCurrentVideoIndex(index)
         setCurrentVideo(playlist.videos[index])
       }
     }
-  }, [playlist, videoId, currentVideo?.id, currentVideoIndex, router, lockProcessComplete])
+  }, [playlist, videoId, currentVideo?.id, currentVideoIndex, router, playlistId])
 
   // Add cleanup for safety
   useEffect(() => {
@@ -270,7 +259,7 @@ export default function VideoPlayerPage() {
 
   // Add a new useEffect to handle video playback when currentVideo changes
   useEffect(() => {
-    if (currentVideo && videoRef.current && videoChangeRef.current && lockProcessComplete) {
+    if (currentVideo && videoRef.current && videoChangeRef.current) {
       // Reset video state
       setProgress(0)
       setCurrentTime(0)
@@ -296,15 +285,110 @@ export default function VideoPlayerPage() {
 
       return () => clearTimeout(playTimer)
     }
-  }, [currentVideo, lockProcessComplete])
+  }, [currentVideo])
 
+  // Add this new function to fetch videos directly from Firestore
+  const fetchCategoryVideos = async (category: string) => {
+    if (!user) return []
+
+    try {
+      // Fetch videos from Firestore with the specified category
+      const videosCollection = collection(db, "videos")
+      const q = query(videosCollection, where("category", "==", category))
+
+      const videoSnapshot = await getDocs(q)
+      const videoList = videoSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        thumbnail: doc.data().publicId
+          ? `https://res.cloudinary.com/dvuf7bf0x/video/upload/${doc.data().publicId}.jpg`
+          : "/placeholder.svg?height=180&width=320",
+        description: doc.data().description || "No description available",
+        category: doc.data().category || "Uncategorized",
+      })) as Video[]
+
+      console.log(`Fetched ${videoList.length} videos for category: ${category}`)
+      return videoList
+    } catch (error) {
+      console.error(`Error fetching ${category} videos:`, error)
+      return []
+    }
+  }
+
+  const organizeIntoModules = (videos: Video[]) => {
+    if (!videos || !Array.isArray(videos) || videos.length === 0) return;
+  
+    // Create modules array
+    const moduleArray: Module[] = [];
+  
+    // Group videos by category
+    const videosByCategory = videos.reduce((acc, video) => {
+      const category = video.category || "Uncategorized";
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(video);
+      return acc;
+    }, {} as Record<string, Video[]>);
+  
+    // 1. Always add Company Introduction module first
+    moduleArray.push({
+      name: "Company Introduction",
+      category: "General",
+      videos: videosByCategory["General"] || [],
+    });
+  
+    // 2. Add user profession modules
+    userProfessions.forEach((profession) => {
+      if (videosByCategory[profession]) {
+        moduleArray.push({
+          name: profession,
+          category: profession,
+          videos: videosByCategory[profession],
+        });
+      }
+    });
+  
+    // 3. Add other categories as modules (except General and Miscellaneous)
+    Object.entries(videosByCategory).forEach(([category, categoryVideos]) => {
+      if (category !== "General" && category !== "Miscellaneous") {
+        moduleArray.push({
+          name: category,
+          category,
+          videos: categoryVideos,
+        });
+      }
+    });
+  
+    // 4. Always add Miscellaneous module last
+    moduleArray.push({
+      name: "Miscellaneous",
+      category: "Miscellaneous",
+      videos: videosByCategory["Miscellaneous"] || [],
+    });
+  
+    setModules(moduleArray);
+  
+    // Set active module based on current video
+    if (currentVideo) {
+      const moduleIndex = moduleArray.findIndex((module) =>
+        module.videos.some((video) => video.id === currentVideo.id)
+      );
+  
+      if (moduleIndex !== -1) {
+        setActiveModuleIndex(moduleIndex);
+      }
+    }
+  };
+  
+
+  // Update the fetchPlaylist function to use the async organizeIntoModules
   const fetchPlaylist = async (id: string, initialVideoId?: string) => {
     try {
       setLoading(true)
-      setLockProcessComplete(false) // Reset lock process state
 
-      // Check if this is a special "all-videos" playlist or custom playlist from localStorage
-      if (id === "all-videos" || id === "custom-playlist") {
+      // Check if this is a special "all-videos" playlist from localStorage
+      if (id === "custom-playlist") {
         const storedPlaylist = localStorage.getItem("currentPlaylist")
         if (storedPlaylist) {
           try {
@@ -317,12 +401,11 @@ export default function VideoPlayerPage() {
 
             setPlaylist(playlistData)
 
-            // Organize videos into modules
-            organizeIntoModules(playlistData.videos)
+            // Organize videos into modules (now async)
+            await organizeIntoModules(playlistData.videos)
 
             // Initialize watch events
             await initializeWatchEvents(playlistData, initialVideoId)
-            setLoading(false)
             return
           } catch (error) {
             console.error("Error parsing playlist from localStorage:", error)
@@ -338,53 +421,47 @@ export default function VideoPlayerPage() {
       }
 
       // Regular Firestore playlist fetch
-      try {
-        const docRef = doc(db, "playlists", id)
-        const docSnap = await getDoc(docRef)
+      const docRef = doc(db, "playlists", id)
+      const docSnap = await getDoc(docRef)
 
-        if (docSnap.exists()) {
-          const playlistData = { id: docSnap.id, ...docSnap.data() } as Playlist
+      if (docSnap.exists()) {
+        const playlistData = { id: docSnap.id, ...docSnap.data() } as Playlist
 
-          // Validate the playlist data
-          if (!playlistData.videos || !Array.isArray(playlistData.videos) || playlistData.videos.length === 0) {
-            throw new Error("Invalid playlist data: missing or empty videos array")
-          }
-
-          setPlaylist(playlistData)
-
-          // Organize videos into modules
-          organizeIntoModules(playlistData.videos)
-
-          // Initialize watch events
-          await initializeWatchEvents(playlistData, initialVideoId)
-        } else {
-          toast({
-            title: "Error",
-            description: "Playlist not found",
-            variant: "destructive",
-          })
-          router.push("/dashboard")
+        // Validate the playlist data
+        if (!playlistData.videos || !Array.isArray(playlistData.videos) || playlistData.videos.length === 0) {
+          throw new Error("Invalid playlist data: missing or empty videos array")
         }
-      } catch (error) {
-        console.error("Error fetching playlist:", error)
+
+        setPlaylist(playlistData)
+
+        // Organize videos into modules (now async)
+        await organizeIntoModules(playlistData.videos)
+
+        // Initialize watch events
+        await initializeWatchEvents(playlistData, initialVideoId)
+      } else {
         toast({
           title: "Error",
-          description: "Failed to load playlist",
+          description: "Playlist not found",
           variant: "destructive",
         })
         router.push("/dashboard")
-      } finally {
-        setLoading(false)
       }
     } catch (error) {
-      console.error("Error in fetchPlaylist:", error)
-      setLoading(false)
+      console.error("Error fetching playlist:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load playlist",
+        variant: "destructive",
+      })
       router.push("/dashboard")
+    } finally {
+      setLoading(false)
     }
   }
 
   const initializeWatchEvents = async (playlistData: Playlist, initialVideoId?: string) => {
-    if (!user) return
+    if (!user || !playlistData.videos || !Array.isArray(playlistData.videos) || playlistData.videos.length === 0) return
 
     const watchEvents: Record<string, boolean | null> = {}
 
@@ -413,47 +490,46 @@ export default function VideoPlayerPage() {
         })
 
         // Second pass: Unlock videos in sequence
-        let lastWatchedIndex = -1
+        let lastUnlockedIndex = 0
         for (let i = 0; i < playlistData.videos.length; i++) {
           const videoId = playlistData.videos[i].id
+
+          // If this video is watched, update lastUnlockedIndex
           if (watchEvents[videoId] === true) {
-            lastWatchedIndex = i
+            lastUnlockedIndex = i + 1
+          }
+
+          // Unlock videos up to lastUnlockedIndex
+          if (i <= lastUnlockedIndex && watchEvents[videoId] === null) {
+            watchEvents[videoId] = false // Unlocked but not watched
           }
         }
 
-        // Unlock the next video after the last watched one
-        if (lastWatchedIndex >= 0 && lastWatchedIndex + 1 < playlistData.videos.length) {
-          const nextVideoId = playlistData.videos[lastWatchedIndex + 1].id
-          watchEvents[nextVideoId] = false // Unlocked but not watched
-        }
-      }
+        setVideoWatchEvents(watchEvents)
 
-      setVideoWatchEvents(watchEvents)
-
-      // Set current video based on initialVideoId or find the first unlocked unwatched video
-      if (initialVideoId) {
-        const index = playlistData.videos.findIndex((v) => v.id === initialVideoId)
-        if (index !== -1 && (watchEvents[initialVideoId] === true || watchEvents[initialVideoId] === false)) {
-          setCurrentVideoIndex(index)
-          setCurrentVideo(playlistData.videos[index])
+        // Set current video based on initialVideoId or find the first unlocked unwatched video
+        if (initialVideoId) {
+          const index = playlistData.videos.findIndex((v) => v.id === initialVideoId)
+          if (index !== -1 && (watchEvents[initialVideoId] === true || watchEvents[initialVideoId] === false)) {
+            setCurrentVideoIndex(index)
+            setCurrentVideo(playlistData.videos[index])
+          } else {
+            // If the initialVideoId is locked, find the first unlocked video
+            findAndSetFirstPlayableVideo(playlistData.videos, watchEvents)
+          }
         } else {
-          // If the initialVideoId is locked, find the first unlocked video
+          // No initialVideoId, find the first unlocked unwatched video
           findAndSetFirstPlayableVideo(playlistData.videos, watchEvents)
         }
-      } else {
-        // No initialVideoId, find the first unlocked unwatched video
-        findAndSetFirstPlayableVideo(playlistData.videos, watchEvents)
       }
-
-      // Mark lock process as complete
-      setLockProcessComplete(true)
     } catch (error) {
       console.error("Error initializing watch events:", error)
-      setLockProcessComplete(true) // Still mark as complete to avoid blocking UI
     }
   }
 
   const findAndSetFirstPlayableVideo = (videos: Video[], watchEvents: Record<string, boolean | null>) => {
+    if (!videos || !Array.isArray(videos) || videos.length === 0) return
+
     // First try to find an unlocked but unwatched video
     const unwatchedIndex = videos.findIndex((v) => watchEvents[v.id] === false)
     if (unwatchedIndex !== -1) {
@@ -462,195 +538,18 @@ export default function VideoPlayerPage() {
       return
     }
 
-    // If all videos are watched, start with the first one
-    setCurrentVideoIndex(0)
-    setCurrentVideo(videos[0])
-  }
-
-  const organizeIntoModules = (videos: Video[]) => {
-    if (!videos || !Array.isArray(videos) || videos.length === 0) {
-      setModules([])
+    // If no unwatched videos, find the first watched video
+    const watchedIndex = videos.findIndex((v) => watchEvents[v.id] === true)
+    if (watchedIndex !== -1) {
+      setCurrentVideoIndex(watchedIndex)
+      setCurrentVideo(videos[watchedIndex])
       return
     }
 
-    // Create modules array
-    const moduleArray: Module[] = []
-
-    // Group videos by category
-    const videosByCategory = videos.reduce(
-      (acc, video) => {
-        if (!video) return acc
-        const category = video.category || "Uncategorized"
-        if (!acc[category]) {
-          acc[category] = []
-        }
-        acc[category].push(video)
-        return acc
-      },
-      {} as Record<string, Video[]>,
-    )
-
-    // 1. Always add Company Introduction module first (General category)
-    if (videosByCategory["General"] && videosByCategory["General"].length > 0) {
-      moduleArray.push({
-        name: "Company Introduction",
-        category: "General",
-        videos: videosByCategory["General"],
-      })
-      delete videosByCategory["General"]
-    }
-
-    // 2. Add other categories as modules (except Miscellaneous)
-    Object.entries(videosByCategory)
-      .filter(([category]) => category !== "Miscellaneous")
-      .forEach(([category, categoryVideos]) => {
-        if (categoryVideos && categoryVideos.length > 0) {
-          moduleArray.push({
-            name: category,
-            category: category,
-            videos: categoryVideos,
-          })
-        }
-      })
-
-    // 3. Always add Miscellaneous module last
-    if (videosByCategory["Miscellaneous"] && videosByCategory["Miscellaneous"].length > 0) {
-      moduleArray.push({
-        name: "Miscellaneous",
-        category: "Miscellaneous",
-        videos: videosByCategory["Miscellaneous"],
-      })
-    }
-
-    setModules(moduleArray)
-
-    // Set active module based on current video
-    if (currentVideo && moduleArray.length > 0) {
-      const moduleIndex = moduleArray.findIndex(
-        (module) =>
-          module.videos &&
-          Array.isArray(module.videos) &&
-          module.videos.some((video) => video && video.id === currentVideo.id),
-      )
-
-      if (moduleIndex !== -1) {
-        setActiveModuleIndex(moduleIndex)
-      }
-    }
-  }
-
-  // New function to update user analytics
-  const updateUserAnalytics = async (
-    eventType: string,
-    videoId: string,
-    watchDuration?: number,
-    completed?: boolean,
-  ) => {
-    if (!user) return
-
-    try {
-      // Get user analytics doc or create if it doesn't exist
-      const userAnalyticsRef = collection(db, "userAnalytics")
-      const q = query(userAnalyticsRef, where("userId", "==", user.uid))
-      const querySnapshot = await getDocs(q)
-
-      let analyticsDocRef
-
-      if (querySnapshot.empty) {
-        // Create new analytics document
-        analyticsDocRef = await addDoc(userAnalyticsRef, {
-          userId: user.uid,
-          userEmail: user.email,
-          totalWatchTime: 0,
-          videosWatched: 0,
-          videosCompleted: 0,
-          lastActive: serverTimestamp(),
-          createdAt: serverTimestamp(),
-        })
-      } else {
-        // Use existing document
-        analyticsDocRef = querySnapshot.docs[0].ref
-      }
-
-      // Update analytics based on event type
-      const updateData: any = {
-        lastActive: serverTimestamp(),
-      }
-
-      if (watchDuration) {
-        updateData.totalWatchTime = increment(watchDuration)
-      }
-
-      if (eventType === "play") {
-        updateData.videosWatched = increment(1)
-      }
-
-      if (completed) {
-        updateData.videosCompleted = increment(1)
-      }
-
-      await updateDoc(analyticsDocRef, updateData)
-    } catch (error) {
-      console.error("Error updating user analytics:", error)
-    }
-  }
-
-  // New function to update video analytics
-  const updateVideoAnalytics = async (
-    eventType: string,
-    videoId: string,
-    watchDuration?: number,
-    completed?: boolean,
-  ) => {
-    if (!videoId) return
-
-    try {
-      // Get video analytics doc or create if it doesn't exist
-      const videoAnalyticsRef = collection(db, "videoAnalytics")
-      const q = query(videoAnalyticsRef, where("videoId", "==", videoId))
-      const querySnapshot = await getDocs(q)
-
-      let analyticsDocRef
-
-      if (querySnapshot.empty) {
-        // Create new analytics document
-        analyticsDocRef = await addDoc(videoAnalyticsRef, {
-          videoId,
-          title: currentVideo?.title || "Unknown",
-          category: currentVideo?.category || "Uncategorized",
-          views: 0,
-          completions: 0,
-          totalWatchTime: 0,
-          averageRating: 0,
-          ratingCount: 0,
-          lastWatched: serverTimestamp(),
-          createdAt: serverTimestamp(),
-        })
-      } else {
-        // Use existing document
-        analyticsDocRef = querySnapshot.docs[0].ref
-      }
-
-      // Update analytics based on event type
-      const updateData: any = {
-        lastWatched: serverTimestamp(),
-      }
-
-      if (watchDuration) {
-        updateData.totalWatchTime = increment(watchDuration)
-      }
-
-      if (eventType === "play") {
-        updateData.views = increment(1)
-      }
-
-      if (completed) {
-        updateData.completions = increment(1)
-      }
-
-      await updateDoc(analyticsDocRef, updateData)
-    } catch (error) {
-      console.error("Error updating video analytics:", error)
+    // If all videos are locked except the first one, start with the first one
+    if (watchEvents[videos[0].id] === false) {
+      setCurrentVideoIndex(0)
+      setCurrentVideo(videos[0])
     }
   }
 
@@ -674,13 +573,11 @@ export default function VideoPlayerPage() {
         // Log play event to Firestore
         logVideoEvent("play", isRewatch)
 
-        // Update analytics
-        updateUserAnalytics("play", currentVideo.id)
-        updateVideoAnalytics("play", currentVideo.id)
-
         // Mark this video as played in this session
         sessionStorage.setItem(sessionKey, "true")
       }
+
+      
     }
   }
 
@@ -696,31 +593,19 @@ export default function VideoPlayerPage() {
         // Log pause event to Firestore
         logVideoEvent("pause", false, watchDuration)
 
-        // Update analytics
-        updateUserAnalytics("pause", currentVideo.id, watchDuration)
-        updateVideoAnalytics("pause", currentVideo.id, watchDuration)
-
         // Reset watch start time
         setWatchStartTime(null)
+
+        // Track video pause in Google Analytics
+     
       }
     }
   }
 
   const handleVideoEnded = () => {
-    if (
-      !currentVideo ||
-      !playlist ||
-      !playlist.videos ||
-      !Array.isArray(playlist.videos) ||
-      playlist.videos.length === 0
-    ) {
-      return
-    }
+    if (!currentVideo || !playlist || !playlist.videos || !Array.isArray(playlist.videos)) return
 
     setIsPlaying(false)
-
-    // Set progress to 100% when video ends
-    setProgress(100)
 
     // Calculate final watch duration for analytics
     if (watchStartTime) {
@@ -743,15 +628,11 @@ export default function VideoPlayerPage() {
       // Log completion event to Firestore
       logVideoEvent("completion", false, watchDuration, true)
 
-      // Update analytics
-      updateUserAnalytics("completion", currentVideo.id, watchDuration, true)
-      updateVideoAnalytics("completion", currentVideo.id, watchDuration, true)
-
       // Reset watch start time
       setWatchStartTime(null)
 
-      // Prompt for video feedback
-      setVideoFeedbackOpen(true)
+      // Track video completion in Google Analytics
+    
 
       // Auto play next video if available
       if (currentVideoIndex + 1 < playlist.videos.length) {
@@ -768,12 +649,9 @@ export default function VideoPlayerPage() {
           window.history.pushState({}, "", newUrl)
 
           // Update active module if needed
-          if (modules && modules.length > 0) {
-            const moduleIndex = modules.findIndex(
-              (module) =>
-                module.videos &&
-                Array.isArray(module.videos) &&
-                module.videos.some((video) => video && video.id === playlist.videos[nextIndex].id),
+          if (modules.length > 0) {
+            const moduleIndex = modules.findIndex((module) =>
+              module.videos.some((video) => video.id === playlist.videos[nextIndex].id),
             )
 
             if (moduleIndex !== -1 && moduleIndex !== activeModuleIndex) {
@@ -793,7 +671,7 @@ export default function VideoPlayerPage() {
 
   const checkAndSetVideoWatched = async (videoId: string) => {
     if (!user || !playlist || !videoId) return
-
+  
     try {
       // Query Firestore for watch history of the current video
       const watchHistoryQuery = query(
@@ -802,17 +680,17 @@ export default function VideoPlayerPage() {
         where("videoId", "==", videoId),
         where("completed", "==", true),
       )
-
+  
       const watchHistorySnapshot = await getDocs(watchHistoryQuery)
-
+  
       if (!watchHistorySnapshot.empty) {
         // If the video has been watched, update its status
         const updatedWatchEvents = { ...videoWatchEvents }
         updatedWatchEvents[videoId] = true
-
+  
         // Find the current video index in the playlist
         const currentIndex = playlist.videos.findIndex((v) => v.id === videoId)
-
+  
         // Unlock the next video if it exists and is currently locked
         if (currentIndex !== -1 && currentIndex + 1 < playlist.videos.length) {
           const nextVideoId = playlist.videos[currentIndex + 1].id
@@ -820,9 +698,9 @@ export default function VideoPlayerPage() {
             updatedWatchEvents[nextVideoId] = false // Unlock but not watched
           }
         }
-
+  
         setVideoWatchEvents(updatedWatchEvents)
-
+  
         // Optionally log rewatch event
         logVideoEvent("rewatch", true)
       }
@@ -830,11 +708,11 @@ export default function VideoPlayerPage() {
       console.error("Error checking watch status:", error)
     }
   }
-
+  
   // Fetch watch history for all videos
   const fetchWatchHistory = async () => {
-    if (!user || !playlist) return
-
+    if (!user || !playlist || !playlist.videos || !Array.isArray(playlist.videos)) return
+  
     try {
       // Query Firestore for all completed videos by this user
       const watchHistoryQuery = query(
@@ -842,37 +720,37 @@ export default function VideoPlayerPage() {
         where("userId", "==", user.uid),
         where("completed", "==", true),
       )
-
+  
       const watchHistorySnapshot = await getDocs(watchHistoryQuery)
       const watchedVideoIds = new Set(watchHistorySnapshot.docs.map((doc) => doc.data().videoId))
-
+  
       if (watchedVideoIds.size > 0) {
         // Create a new watch events object
         const updatedWatchEvents = { ...videoWatchEvents }
-
+  
         // Mark all watched videos
         playlist.videos.forEach((video) => {
           if (watchedVideoIds.has(video.id)) {
             updatedWatchEvents[video.id] = true
           }
         })
-
+  
         // Unlock videos after watched ones in sequence
-        let lastWatchedIndex = -1
+        let lastUnlockedIndex = 0
         for (let i = 0; i < playlist.videos.length; i++) {
-          if (updatedWatchEvents[playlist.videos[i].id] === true) {
-            lastWatchedIndex = i
+          const videoId = playlist.videos[i].id
+  
+          // If this video is watched, update lastUnlockedIndex
+          if (updatedWatchEvents[videoId] === true) {
+            lastUnlockedIndex = i + 1
+          }
+  
+          // Unlock videos up to lastUnlockedIndex
+          if (i <= lastUnlockedIndex && updatedWatchEvents[videoId] === null) {
+            updatedWatchEvents[videoId] = false // Unlocked but not watched
           }
         }
-
-        // Unlock the next video after the last watched one
-        if (lastWatchedIndex >= 0 && lastWatchedIndex + 1 < playlist.videos.length) {
-          const nextVideoId = playlist.videos[lastWatchedIndex + 1].id
-          if (updatedWatchEvents[nextVideoId] === null) {
-            updatedWatchEvents[nextVideoId] = false // Unlocked but not watched
-          }
-        }
-
+  
         // Update state
         setVideoWatchEvents(updatedWatchEvents)
       }
@@ -880,54 +758,83 @@ export default function VideoPlayerPage() {
       console.error("Error fetching watch history:", error)
     }
   }
+  
+  const fetchVideoFeedbacks = async (videoId: string) => {
+    if (!user || !videoId) return
+
+    try {
+      const feedbackQuery = query(
+        collection(db, "videoFeedbacks"),
+        where("videoId", "==", videoId),
+        orderBy("createdAt", "desc"),
+      )
+
+      const feedbackSnapshot = await getDocs(feedbackQuery)
+      const feedbacks = feedbackSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate() || new Date(),
+      }))
+
+      setVideoFeedbacks(feedbacks)
+    } catch (error) {
+      console.error("Error fetching video feedbacks:", error)
+    }
+  }
 
   // Add this to the useEffect that runs when playlist is loaded
   useEffect(() => {
-    if (playlist && user && lockProcessComplete) {
+    if (playlist && user) {
       fetchWatchHistory()
     }
-  }, [playlist, user, lockProcessComplete])
+  }, [playlist, user])
+
+  useEffect(() => {
+    if (currentVideo && currentVideo.id) {
+      fetchVideoFeedbacks(currentVideo.id)
+    }
+  }, [currentVideo])
 
   const handleVideoTimeUpdate = () => {
-    if (!videoRef.current || !currentVideo) return
+    if (videoRef.current && currentVideo) {
+      const current = videoRef.current.currentTime
+      const videoDuration = videoRef.current.duration
 
-    const current = videoRef.current.currentTime
-    const videoDuration = videoRef.current.duration
+      // Update progress state
+      setCurrentTime(current)
+      setDuration(videoDuration)
+      setProgress((current / videoDuration) * 100)
 
-    // Update progress state
-    setCurrentTime(current)
-    setDuration(videoDuration)
-    setProgress((current / videoDuration) * 100)
+      // Update video progress for this specific video
+      setVideoProgress((prev) => ({
+        ...prev,
+        [currentVideo.id]: (current / videoDuration) * 100,
+      }))
 
-    // Update video progress for this specific video
-    setVideoProgress((prev) => ({
-      ...prev,
-      [currentVideo.id]: (current / videoDuration) * 100,
-    }))
+      // Track progress milestones (25%, 50%, 75%)
+      const milestones = [25, 50, 75]
+      const currentProgress = (current / videoDuration) * 100
+      const currentMilestone = Math.floor(currentProgress / 25) * 25
 
-    // Track progress milestones (25%, 50%, 75%)
-    const milestones = [25, 50, 75]
-    const currentProgress = (current / videoDuration) * 100
-    const currentMilestone = Math.floor(currentProgress / 25) * 25
+      if (
+        milestones.includes(currentMilestone) &&
+        (!videoProgressMilestones[currentVideo.id] ||
+          !videoProgressMilestones[currentVideo.id].includes(currentMilestone))
+      ) {
+        // Update tracked milestones
+        setVideoProgressMilestones((prev) => {
+          const updatedMilestones = { ...prev }
+          if (!updatedMilestones[currentVideo.id]) {
+            updatedMilestones[currentVideo.id] = []
+          }
+          updatedMilestones[currentVideo.id] = [...updatedMilestones[currentVideo.id], currentMilestone]
+          return updatedMilestones
+        })
 
-    if (
-      milestones.includes(currentMilestone) &&
-      (!videoProgressMilestones[currentVideo.id] ||
-        !Array.isArray(videoProgressMilestones[currentVideo.id]) ||
-        !videoProgressMilestones[currentVideo.id].includes(currentMilestone))
-    ) {
-      // Update tracked milestones
-      setVideoProgressMilestones((prev) => {
-        const updatedMilestones = { ...prev }
-        if (!updatedMilestones[currentVideo.id]) {
-          updatedMilestones[currentVideo.id] = []
-        }
-        updatedMilestones[currentVideo.id] = [...updatedMilestones[currentVideo.id], currentMilestone]
-        return updatedMilestones
-      })
+        // Log milestone event with a valid progressPercentage
+        logVideoEvent("milestone", false, current, false, currentMilestone)
 
-      // Log milestone event with a valid progressPercentage
-      logVideoEvent("milestone", false, current, false, currentMilestone)
+      }
     }
   }
 
@@ -943,13 +850,17 @@ export default function VideoPlayerPage() {
     try {
       const eventData: any = {
         videoId: currentVideo.id,
+        videoTitle: currentVideo.title || "Unknown Video",
         userId: user.uid,
+        userEmail: user.email || "Unknown User",
         playlistId: playlist.id,
         watchedAt: serverTimestamp(),
         watchDuration: watchDuration || 0,
         completed: completed || false,
         isRewatch: isRewatch,
         eventType,
+        category: currentVideo.category || "Uncategorized",
+        tags: currentVideo.tags || [],
       }
 
       if (progressPercentage !== undefined) {
@@ -963,31 +874,38 @@ export default function VideoPlayerPage() {
   }
 
   const playNextVideo = () => {
-    if (!playlist || !playlist.videos || !Array.isArray(playlist.videos) || playlist.videos.length === 0) return
-
+    if (!playlist || !playlist.videos || !Array.isArray(playlist.videos) || playlist.videos.length === 0 || !currentVideo) return
+  
     const nextIndex = currentVideoIndex + 1
     if (nextIndex < playlist.videos.length) {
       const nextVideoId = playlist.videos[nextIndex].id
-      if (videoWatchEvents[nextVideoId] !== null || isAdmin) {
+      const currentVideoWatched = videoWatchEvents[currentVideo.id] === true
+  
+      // Check if the next video is unlocked OR if current video is watched
+      if (videoWatchEvents[nextVideoId] === true || videoWatchEvents[nextVideoId] === false || currentVideoWatched) {
+        // If current video is watched but next video is locked, unlock it
+        if (currentVideoWatched && videoWatchEvents[nextVideoId] === null) {
+          const updatedWatchEvents = { ...videoWatchEvents }
+          updatedWatchEvents[nextVideoId] = false // Unlock but not watched
+          setVideoWatchEvents(updatedWatchEvents)
+        }
+  
         videoChangeRef.current = true
         setCurrentVideoIndex(nextIndex)
         setCurrentVideo(playlist.videos[nextIndex])
         setProgress(0)
         setCurrentTime(0)
-
+  
         // Update URL without refreshing the page
         const newUrl = `/video-player?videoId=${nextVideoId}&playlistId=${playlist.id}`
         window.history.pushState({}, "", newUrl)
-
+  
         // Update active module if needed
-        if (modules && modules.length > 0) {
-          const moduleIndex = modules.findIndex(
-            (module) =>
-              module.videos &&
-              Array.isArray(module.videos) &&
-              module.videos.some((video) => video && video.id === playlist.videos[nextIndex].id),
+        if (modules.length > 0) {
+          const moduleIndex = modules.findIndex((module) =>
+            module.videos.some((video) => video.id === playlist.videos[nextIndex].id)
           )
-
+  
           if (moduleIndex !== -1 && moduleIndex !== activeModuleIndex) {
             setActiveModuleIndex(moduleIndex)
           }
@@ -1001,12 +919,33 @@ export default function VideoPlayerPage() {
       }
     }
   }
+  
+
+  const unlockNextVideoIfNeeded = (videoId: string) => {
+    if (!playlist || !playlist.videos) return
+  
+    const currentIndex = playlist.videos.findIndex((v) => v.id === videoId)
+    if (currentIndex === -1 || currentIndex >= playlist.videos.length - 1) return
+  
+    const nextVideoId = playlist.videos[currentIndex + 1].id
+    
+    // Only update if the current video is watched and next video is locked
+    if (videoWatchEvents[videoId] === true && videoWatchEvents[nextVideoId] === null) {
+      const updatedWatchEvents = { ...videoWatchEvents }
+      updatedWatchEvents[nextVideoId] = false // Unlock but not watched
+      setVideoWatchEvents(updatedWatchEvents)
+    }
+  }
+  
 
   const playPreviousVideo = () => {
     if (!playlist || !playlist.videos || !Array.isArray(playlist.videos) || playlist.videos.length === 0) return
 
     const prevIndex = currentVideoIndex - 1
     if (prevIndex >= 0) {
+      const prevVideoId = playlist.videos[prevIndex].id
+
+      // Previous videos should always be unlocked
       videoChangeRef.current = true
       setCurrentVideoIndex(prevIndex)
       setCurrentVideo(playlist.videos[prevIndex])
@@ -1018,18 +957,17 @@ export default function VideoPlayerPage() {
       window.history.pushState({}, "", newUrl)
 
       // Update active module if needed
-      if (modules && modules.length > 0) {
-        const moduleIndex = modules.findIndex(
-          (module) =>
-            module.videos &&
-            Array.isArray(module.videos) &&
-            module.videos.some((video) => video && video.id === playlist.videos[prevIndex].id),
+      if (modules.length > 0) {
+        const moduleIndex = modules.findIndex((module) =>
+          module.videos.some((video) => video.id === playlist.videos[prevIndex].id),
         )
 
         if (moduleIndex !== -1 && moduleIndex !== activeModuleIndex) {
           setActiveModuleIndex(moduleIndex)
         }
       }
+
+      //
     }
   }
 
@@ -1060,7 +998,7 @@ export default function VideoPlayerPage() {
       // Save feedback to Firestore
       await addDoc(collection(db, "feedback"), {
         userId: user.uid,
-        userEmail: user.email,
+        userEmail: user.email || "Unknown User",
         feedback,
         playlistId: playlist.id,
         createdAt: serverTimestamp(),
@@ -1075,8 +1013,7 @@ export default function VideoPlayerPage() {
         description: "Your feedback has been submitted successfully.",
       })
 
-      // Redirect to thank you page
-      router.push("/thank-you")
+ 
     } catch (error) {
       console.error("Error submitting feedback:", error)
       setSubmittingFeedback(false)
@@ -1090,63 +1027,42 @@ export default function VideoPlayerPage() {
   }
 
   const handleSubmitVideoFeedback = async () => {
-    if (!currentVideo || !user || videoFeedback.rating === 0) return
+    if (!videoFeedback.trim() || !user || !currentVideo) return
 
     setSubmittingVideoFeedback(true)
     try {
       // Save video feedback to Firestore
-      await addDoc(collection(db, "videoFeedback"), {
+      await addDoc(collection(db, "videoFeedbacks"), {
         userId: user.uid,
-        userEmail: user.email,
+        userEmail: user.email || "Unknown User",
         videoId: currentVideo.id,
         videoTitle: currentVideo.title,
-        rating: videoFeedback.rating,
-        comment: videoFeedback.comment,
+        rating: videoRating,
+        feedback: videoFeedback,
         createdAt: serverTimestamp(),
       })
 
-      // Update video analytics with new rating
-      try {
-        const videoAnalyticsRef = collection(db, "videoAnalytics")
-        const q = query(videoAnalyticsRef, where("videoId", "==", currentVideo.id))
-        const querySnapshot = await getDocs(q)
-
-        if (!querySnapshot.empty) {
-          const analyticsDoc = querySnapshot.docs[0]
-          const analyticsData = analyticsDoc.data()
-
-          // Calculate new average rating
-          const currentRatingCount = analyticsData.ratingCount || 0
-          const currentAvgRating = analyticsData.averageRating || 0
-
-          const newRatingCount = currentRatingCount + 1
-          const newAvgRating = (currentAvgRating * currentRatingCount + videoFeedback.rating) / newRatingCount
-
-          // Update the document
-          await updateDoc(analyticsDoc.ref, {
-            averageRating: newAvgRating,
-            ratingCount: newRatingCount,
-          })
-        }
-      } catch (error) {
-        console.error("Error updating video rating:", error)
-      }
-
       setSubmittingVideoFeedback(false)
-      setVideoFeedback({ rating: 0, comment: "" })
+      setVideoFeedback("")
+      setVideoRating(null)
       setVideoFeedbackOpen(false)
+
+      // Refresh feedbacks
+      fetchVideoFeedbacks(currentVideo.id)
 
       toast({
         title: "Thank you!",
-        description: "Your feedback on this video has been submitted.",
+        description: "Your feedback for this video has been submitted successfully.",
       })
+
+      
     } catch (error) {
       console.error("Error submitting video feedback:", error)
       setSubmittingVideoFeedback(false)
 
       toast({
         title: "Error",
-        description: "Failed to submit video feedback. Please try again.",
+        description: "Failed to submit feedback. Please try again.",
         variant: "destructive",
       })
     }
@@ -1163,24 +1079,19 @@ export default function VideoPlayerPage() {
       !playlist ||
       !playlist.videos ||
       !Array.isArray(playlist.videos) ||
-      playlist.videos.length === 0 ||
       index < 0 ||
       index >= playlist.videos.length
-    )
+    ) {
       return false
+    }
 
     const video = playlist.videos[index]
-    if (!video || !video.id) return false
-
-    // Admin can play any video
-    if (isAdmin) return true
-
-    return videoWatchEvents[video.id] !== null
+    return videoWatchEvents[video.id] === true || videoWatchEvents[video.id] === false
   }
 
   const handleLogout = async () => {
     try {
-      await signOut(auth)
+      await auth.signOut()
       router.push("/login")
     } catch (error) {
       console.error("Error signing out:", error)
@@ -1188,18 +1099,20 @@ export default function VideoPlayerPage() {
   }
 
   const playVideoFromModule = (moduleIndex: number, videoIndex: number) => {
-    if (!playlist || !modules || moduleIndex < 0 || moduleIndex >= modules.length) return
+    if (
+      !playlist ||
+      !modules ||
+      moduleIndex < 0 ||
+      moduleIndex >= modules.length ||
+      videoIndex < 0 ||
+      videoIndex >= modules[moduleIndex].videos.length
+    )
+      return
 
-    const module = modules[moduleIndex]
-    if (!module.videos || !Array.isArray(module.videos) || videoIndex < 0 || videoIndex >= module.videos.length) return
+    const video = modules[moduleIndex].videos[videoIndex]
+    const playlistIndex = playlist.videos.findIndex((v) => v.id === video.id)
 
-    const video = module.videos[videoIndex]
-    if (!video || !video.id) return
-
-    const playlistIndex =
-      playlist.videos && Array.isArray(playlist.videos) ? playlist.videos.findIndex((v) => v && v.id === video.id) : -1
-
-    if (playlistIndex !== -1 && (isVideoPlayable(playlistIndex) || isAdmin)) {
+    if (playlistIndex !== -1 && isVideoPlayable(playlistIndex)) {
       videoChangeRef.current = true
       setCurrentVideoIndex(playlistIndex)
       setCurrentVideo(playlist.videos[playlistIndex])
@@ -1210,6 +1123,8 @@ export default function VideoPlayerPage() {
       // Update URL without refreshing the page
       const newUrl = `/video-player?videoId=${video.id}&playlistId=${playlist.id}`
       window.history.pushState({}, "", newUrl)
+
+
     } else {
       toast({
         title: "Video Locked",
@@ -1219,17 +1134,18 @@ export default function VideoPlayerPage() {
     }
   }
 
-  // Admin function to skip to the end of the video
-  const handleSkipToEnd = () => {
-    if (videoRef.current && currentVideo) {
-      // Set current time to near the end of the video
-      videoRef.current.currentTime = videoRef.current.duration - 0.5
+  // Function to handle playback rate change
+  const handlePlaybackRateChange = (rate: number) => {
+    if (videoRef.current) {
+      videoRef.current.playbackRate = rate
+      setPlaybackRate(rate)
+
     }
   }
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
+      <div className="flex min-h-screen items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     )
@@ -1237,11 +1153,11 @@ export default function VideoPlayerPage() {
 
   if (!playlist || !currentVideo) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-gradient-to-br from-gray-900 to-gray-800">
+      <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4 text-white">Video Not Found</h1>
-          <p className="text-gray-300 mb-6">The requested video or playlist could not be found.</p>
-          <Button onClick={() => router.push("/dashboard")} className="bg-primary hover:bg-primary/90">
+          <h1 className="text-2xl font-bold mb-4">Video Not Found</h1>
+          <p className="text-muted-foreground mb-6">The requested video or playlist could not be found.</p>
+          <Button onClick={() => router.push("/dashboard")}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Dashboard
           </Button>
@@ -1251,10 +1167,10 @@ export default function VideoPlayerPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
-      <header className="border-b border-gray-700 sticky top-0 z-10 bg-gray-900/95 backdrop-blur supports-[backdrop-filter]:bg-gray-900/60">
+    <div className="flex flex-col min-h-screen bg-background">
+      <header className="border-b sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/">
+          <Link href="/dashboard">
             <Logo width={120} height={40} />
           </Link>
           <div className="flex items-center gap-4">
@@ -1291,9 +1207,9 @@ export default function VideoPlayerPage() {
         </div>
       </header>
 
-      <main className="flex-1 container py-6 px-4 max-w-6xl mx-auto">
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold text-white">{currentVideo.title}</h1>
+      <main className="flex-1 container py-8 px-4">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold">{currentVideo.title}</h1>
           <div className="flex flex-wrap gap-2 mt-2">
             {currentVideo.category && <Badge variant="outline">{currentVideo.category}</Badge>}
             {currentVideo.tags &&
@@ -1308,19 +1224,28 @@ export default function VideoPlayerPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Video Player */}
           <div className="lg:col-span-2">
-            <Card className="overflow-hidden bg-gray-800 border-gray-700">
+            <Card className="overflow-hidden">
               <CardContent className="p-0">
                 <div ref={playerContainerRef} className="relative aspect-video bg-black">
                   {/* Video Element */}
                   <video
                     ref={videoRef}
                     src={currentVideo.videoUrl}
-                    poster={currentVideo.thumbnail}
-                    className="w-full h-full"
+                    poster={currentVideo.thumbnail || "/placeholder.svg?height=360&width=640"}
+                    className="w-full h-full cursor-pointer"
                     onPlay={() => setIsPlaying(true)}
                     onPause={() => setIsPlaying(false)}
                     onEnded={handleVideoEnded}
                     onTimeUpdate={handleVideoTimeUpdate}
+                    onClick={() => (isPlaying ? handleVideoPause() : handleVideoPlay())}
+                    onError={(e) => {
+                      console.error("Video loading error:", e)
+                      toast({
+                        title: "Video Error",
+                        description: "There was an error loading the video. Please try again later.",
+                        variant: "destructive",
+                      })
+                    }}
                     playsInline
                     controlsList="nodownload"
                   />
@@ -1357,19 +1282,20 @@ export default function VideoPlayerPage() {
 
                         {/* Next Video Button */}
                         <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-white hover:bg-white/20"
-                          onClick={playNextVideo}
-                          disabled={
-                            !playlist?.videos ||
-                            !Array.isArray(playlist.videos) ||
-                            currentVideoIndex === playlist.videos.length - 1 ||
-                            (!isAdmin && !isVideoPlayable(currentVideoIndex + 1))
-                          }
-                        >
-                          <SkipForward className="h-5 w-5" />
-                        </Button>
+                        variant="ghost"
+                        size="icon"
+                        className="text-white hover:bg-white/20"
+                        onClick={playNextVideo}
+                        disabled={
+                          !playlist?.videos ||
+                          !Array.isArray(playlist.videos) ||
+                          currentVideoIndex >= playlist.videos.length - 1 ||
+                          (!isVideoPlayable(currentVideoIndex + 1) && videoWatchEvents[currentVideo.id] !== true)
+                        }
+                      >
+                        <SkipForward className="h-5 w-5" />
+                      </Button>
+
 
                         {/* Mute Button */}
                         <Button
@@ -1381,6 +1307,26 @@ export default function VideoPlayerPage() {
                           {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
                         </Button>
 
+                        {/* Playback Speed Dropdown */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="text-white hover:bg-white/20 text-xs">
+                              {playbackRate}x
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-16">
+                            {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
+                              <DropdownMenuItem
+                                key={rate}
+                                className={playbackRate === rate ? "bg-muted" : ""}
+                                onClick={() => handlePlaybackRateChange(rate)}
+                              >
+                                {rate}x
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+
                         {/* Time Display */}
                         <span className="text-white text-sm">
                           {formatTime(currentTime)} / {formatTime(duration)}
@@ -1388,26 +1334,15 @@ export default function VideoPlayerPage() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {/* Admin Skip Button */}
-                        {isAdmin && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-white hover:bg-white/20"
-                                  onClick={handleSkipToEnd}
-                                >
-                                  <FastForward className="h-5 w-5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Skip to End (Admin Only)</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
+                        {/* Video Info Button */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-white hover:bg-white/20"
+                          onClick={() => setVideoInfoOpen(true)}
+                        >
+                          <Info className="h-5 w-5" />
+                        </Button>
 
                         {/* Fullscreen Button */}
                         <Button
@@ -1425,39 +1360,65 @@ export default function VideoPlayerPage() {
               </CardContent>
             </Card>
 
-            {/* Video Feedback Section */}
-            <Card className="mt-4 bg-gray-800 border-gray-700">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium text-white">Rate this video</h3>
-                  <Button variant="outline" size="sm" onClick={() => setVideoFeedbackOpen(true)}>
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Provide Feedback
-                  </Button>
-                </div>
-                <div className="flex items-center mt-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`h-6 w-6 cursor-pointer ${
-                        videoFeedback.rating >= star ? "text-yellow-500 fill-yellow-500" : "text-gray-400"
-                      }`}
-                      onClick={() => setVideoFeedback({ ...videoFeedback, rating: star })}
-                    />
-                  ))}
-                  <span className="ml-2 text-sm text-gray-300">
-                    {videoFeedback.rating > 0 ? `${videoFeedback.rating}/5` : "Rate this video"}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Rating and Feedback Buttons */}
+            <div className="flex items-center justify-center gap-4 mt-4 mb-6">
+              <Button variant="outline" onClick={() => setVideoFeedbackOpen(true)} className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Rate & Review This Video
+              </Button>
+
+        
+            </div>
+
+            {/* Video Feedbacks Section */}
+            {showVideoFeedbacks && (
+              <Card className="mb-6">
+                <CardContent className="p-4">
+                  <h2 className="text-lg font-semibold mb-4">Video Feedback</h2>
+                  {videoFeedbacks.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-4">No feedback available for this video yet.</p>
+                  ) : (
+                    <div className="space-y-4 max-h-[300px] overflow-y-auto">
+                      {videoFeedbacks.map((feedback) => (
+                        <div key={feedback.id} className="border rounded-md p-3">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className="font-medium">{feedback.userEmail || "Anonymous"}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {feedback.createdAt.toLocaleDateString()} {feedback.createdAt.toLocaleTimeString()}
+                              </p>
+                            </div>
+                            {feedback.rating && (
+                              <div className="flex items-center">
+                                {[...Array(5)].map((_, i) => (
+                                  <svg
+                                    key={i}
+                                    className={`w-4 h-4 ${i < feedback.rating ? "text-yellow-400" : "text-gray-300"}`}
+                                    fill="currentColor"
+                                    viewBox="0 0 20 20"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                  >
+                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                                  </svg>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-sm">{feedback.feedback}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Modules and Videos */}
           <div>
-            <Card className="bg-gray-800 border-gray-700">
+            <Card>
               <CardContent className="p-4">
-                <h2 className="text-lg font-semibold mb-4 text-white">Learning Modules</h2>
+                <h2 className="text-lg font-semibold mb-4">Learning Modules</h2>
                 <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
                   <Accordion
                     type="single"
@@ -1466,8 +1427,8 @@ export default function VideoPlayerPage() {
                     className="w-full"
                   >
                     {modules.map((module, moduleIndex) => (
-                      <AccordionItem key={moduleIndex} value={`module-${moduleIndex}`} className="border-gray-700">
-                        <AccordionTrigger className="hover:no-underline text-white">
+                      <AccordionItem key={moduleIndex} value={`module-${moduleIndex}`}>
+                        <AccordionTrigger className="hover:no-underline">
                           <div className="flex items-center justify-between w-full">
                             <span className="font-medium">{module.name}</span>
                             <Badge variant="outline" className="ml-2">
@@ -1481,8 +1442,7 @@ export default function VideoPlayerPage() {
                               const playlistIndex = playlist.videos.findIndex((v) => v.id === video.id)
                               const isCurrentVideo = currentVideo.id === video.id
                               const isWatched = videoWatchEvents[video.id] === true
-                              const isPlayable =
-                                isAdmin || (playlistIndex !== -1 ? isVideoPlayable(playlistIndex) : false)
+                              const isPlayable = playlistIndex !== -1 ? isVideoPlayable(playlistIndex) : false
 
                               return (
                                 <div
@@ -1491,7 +1451,7 @@ export default function VideoPlayerPage() {
                                     isCurrentVideo
                                       ? "bg-primary/10 border border-primary/30"
                                       : isPlayable
-                                        ? "hover:bg-gray-700 cursor-pointer"
+                                        ? "hover:bg-muted cursor-pointer"
                                         : "opacity-50 cursor-not-allowed"
                                   }`}
                                   onClick={() => {
@@ -1500,18 +1460,28 @@ export default function VideoPlayerPage() {
                                     }
                                   }}
                                 >
-                                  <div className="relative w-20 h-12 flex-shrink-0 bg-gray-700 rounded overflow-hidden">
+                                  <div className="relative w-20 h-12 flex-shrink-0 bg-muted rounded overflow-hidden">
                                     {video.thumbnail ? (
                                       <Image
-                                        src={video.thumbnail || "/placeholder.svg"}
+                                        src={video.thumbnail || "/placeholder.svg?height=40&width=40"}
                                         width={40}
                                         height={40}
                                         alt={video.title}
                                         className="object-cover w-full h-full"
+                                        onError={() => {
+                                          // If image fails to load, replace with placeholder
+                                          const imgElement = document.getElementById(
+                                            `thumb-${video.id}`,
+                                          ) as HTMLImageElement
+                                          if (imgElement) {
+                                            imgElement.src = "/placeholder.svg?height=40&width=40"
+                                          }
+                                        }}
+                                        id={`thumb-${video.id}`}
                                       />
                                     ) : (
                                       <div className="flex items-center justify-center h-full">
-                                        <Play className="h-5 w-5 text-gray-400" />
+                                        <Play className="h-5 w-5 text-muted-foreground" />
                                       </div>
                                     )}
                                     {isWatched && (
@@ -1521,14 +1491,14 @@ export default function VideoPlayerPage() {
                                     )}
                                     {!isPlayable && (
                                       <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                        <Lock className="h-4 w-4 text-gray-400" />
+                                        <Lock className="h-4 w-4 text-muted-foreground" />
                                       </div>
                                     )}
                                   </div>
 
                                   <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-sm truncate text-white">{video.title}</p>
-                                    <p className="text-xs text-gray-400">{video.duration}</p>
+                                    <p className="font-medium text-sm truncate">{video.title}</p>
+                                    <p className="text-xs text-muted-foreground">{video.duration}</p>
                                   </div>
 
                                   {isCurrentVideo && (
@@ -1551,63 +1521,66 @@ export default function VideoPlayerPage() {
         </div>
       </main>
 
-      {/* Video Feedback Dialog */}
-      <Dialog open={videoFeedbackOpen} onOpenChange={setVideoFeedbackOpen}>
-        <DialogContent className="sm:max-w-md bg-gray-800 border-gray-700 text-white">
+      {/* Video Info Dialog */}
+      <Dialog open={videoInfoOpen} onOpenChange={setVideoInfoOpen}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Video Feedback</DialogTitle>
+            <DialogTitle>{currentVideo.title}</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            <div>
-              <h3 className="text-sm font-medium mb-2">Rate this video</h3>
-              <div className="flex items-center">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Star
-                    key={star}
-                    className={`h-6 w-6 cursor-pointer ${
-                      videoFeedback.rating >= star ? "text-yellow-500 fill-yellow-500" : "text-gray-400"
-                    }`}
-                    onClick={() => setVideoFeedback({ ...videoFeedback, rating: star })}
-                  />
-                ))}
-                <span className="ml-2 text-sm">
-                  {videoFeedback.rating > 0 ? `${videoFeedback.rating}/5` : "Select rating"}
-                </span>
+          <div className="space-y-4">
+            {currentVideo.thumbnail && (
+              <div className="rounded-md overflow-hidden">
+                <Image
+                  src={currentVideo.thumbnail || "/placeholder.svg"}
+                  alt={currentVideo.title}
+                  width={400}
+                  height={225}
+                  className="w-full object-cover"
+                />
               </div>
-            </div>
+            )}
 
-            <div>
-              <Label htmlFor="video-comment">Comments (optional)</Label>
-              <Textarea
-                id="video-comment"
-                placeholder="What did you think about this video? Any suggestions for improvement?"
-                value={videoFeedback.comment}
-                onChange={(e) => setVideoFeedback({ ...videoFeedback, comment: e.target.value })}
-                rows={4}
-                className="resize-none mt-2 bg-gray-700 border-gray-600"
-              />
+            <div className="space-y-3">
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground">Duration</h4>
+                <p>{currentVideo.duration}</p>
+              </div>
+
+              {currentVideo.category && (
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">Category</h4>
+                  <p>{currentVideo.category}</p>
+                </div>
+              )}
+
+              {currentVideo.description && (
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">Description</h4>
+                  <p className="text-sm">{currentVideo.description}</p>
+                </div>
+              )}
+
+              {currentVideo.tags && currentVideo.tags.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">Tags</h4>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {currentVideo.tags.map((tag, i) => (
+                      <Badge key={i} variant="outline" className="text-xs">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setVideoFeedbackOpen(false)}>
-              Skip
-            </Button>
-            <Button
-              onClick={handleSubmitVideoFeedback}
-              disabled={videoFeedback.rating === 0 || submittingVideoFeedback}
-              className="bg-primary hover:bg-primary/90"
-            >
-              {submittingVideoFeedback ? "Submitting..." : "Submit Feedback"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Playlist Feedback Dialog */}
+      {/* Feedback Dialog */}
       <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
-        <DialogContent className="sm:max-w-md bg-gray-800 border-gray-700 text-white">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Share Your Feedback</DialogTitle>
           </DialogHeader>
@@ -1618,7 +1591,7 @@ export default function VideoPlayerPage() {
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
               rows={5}
-              className="resize-none bg-gray-700 border-gray-600"
+              className="resize-none"
             />
           </div>
 
@@ -1632,6 +1605,54 @@ export default function VideoPlayerPage() {
               className="bg-primary hover:bg-primary/90"
             >
               {submittingFeedback ? "Submitting..." : "Submit Feedback"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Video Feedback Dialog */}
+      <Dialog open={videoFeedbackOpen} onOpenChange={setVideoFeedbackOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rate & Review: {currentVideo?.title}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="flex justify-center">
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <button key={rating} type="button" className="p-1" onClick={() => setVideoRating(rating)}>
+                  <svg
+                    className={`w-8 h-8 ${
+                      videoRating !== null && rating <= videoRating ? "text-yellow-400" : "text-gray-300"
+                    }`}
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                  </svg>
+                </button>
+              ))}
+            </div>
+            <Textarea
+              placeholder="What did you think about this video? Any suggestions for improvement?"
+              value={videoFeedback}
+              onChange={(e) => setVideoFeedback(e.target.value)}
+              rows={5}
+              className="resize-none"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVideoFeedbackOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitVideoFeedback}
+              disabled={!videoFeedback.trim() || videoRating === null || submittingVideoFeedback}
+              className="bg-primary hover:bg-primary/90"
+            >
+              {submittingVideoFeedback ? "Submitting..." : "Submit Review"}
             </Button>
           </DialogFooter>
         </DialogContent>

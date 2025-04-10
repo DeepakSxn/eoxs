@@ -2,18 +2,20 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { collection, getDocs, query, where } from "firebase/firestore"
-import { db, auth } from "../firebase"
+import { collection, getDocs, orderBy, query, where } from "firebase/firestore"
+
 import { signOut } from "firebase/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Search, LogOut, Clock, Play, CheckCircle } from "lucide-react"
-import { Logo } from "../components/logo"
-import { ThemeToggle } from "../theme-toggle"
+
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/use-toast"
+import { Logo } from "../components/logo"
+import { auth, db } from "../firebase"
+import { ThemeToggle } from "../theme-toggle"
 
 interface Video {
   id: string
@@ -45,7 +47,6 @@ export default function Dashboard() {
   const [user, setUser] = useState<any>(null)
   const [expandedModules, setExpandedModules] = useState<string[]>([])
 
-
   const router = useRouter()
 
   useEffect(() => {
@@ -62,9 +63,11 @@ export default function Dashboard() {
     }
 
     // Check if user is authenticated
-    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
       if (currentUser) {
         setUser(currentUser)
+
+
         fetchVideos(currentUser.uid)
       } else {
         // Redirect to login if not authenticated
@@ -109,74 +112,104 @@ export default function Dashboard() {
     }
   }, [filteredVideos])
 
+  // Helper function to ensure valid URLs
+  const getSafeUrl = (url: string | undefined): string => {
+    if (!url) return "/placeholder.svg?height=180&width=320"
+    try {
+      // Test if it's a valid URL
+      new URL(url)
+      return url
+    } catch (e) {
+      return "/placeholder.svg?height=180&width=320"
+    }
+  }
+
   const fetchVideos = async (userId: string) => {
     try {
-      setLoading(true)
-
-      // Fetch videos from Firestore
-      const videosCollection = collection(db, "videos")
-      const videoSnapshot = await getDocs(videosCollection)
+      setLoading(true);
+  
+      // Fetch ALL videos from Firestore with ordering by timestamp
+      const videosCollection = collection(db, "videos");
+      // Create a query with orderBy to sort by timestamp in ascending order
+      const videosQuery = query(videosCollection, orderBy("createdAt", "asc"));
+      const videoSnapshot = await getDocs(videosQuery);
+      
+      if (videoSnapshot.empty) {
+        toast({
+          title: "No Videos Found",
+          description: "There are no videos available in the system.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      
       const videoList = videoSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
-        thumbnail: doc.data().publicId
-          ? `https://res.cloudinary.com/dvuf7bf0x/video/upload/${doc.data().publicId}.jpg`
-          : "/placeholder.svg", // Fallback thumbnail
+        thumbnail: getSafeUrl(
+          doc.data().publicId
+            ? `https://res.cloudinary.com/dvuf7bf0x/video/upload/${doc.data().publicId}.jpg`
+            : undefined,
+        ),
         description: doc.data().description || "No description available",
         category: doc.data().category || "Uncategorized",
-      })) as unknown as Video[]
-
+      })) as unknown as Video[];
+  
       // Fetch watch history to mark watched videos
       const watchHistoryQuery = query(
         collection(db, "videoWatchEvents"),
         where("userId", "==", userId),
         where("completed", "==", true),
-      )
-
-      const watchHistorySnapshot = await getDocs(watchHistoryQuery)
-      const watchedVideoIds = new Set(watchHistorySnapshot.docs.map((doc) => doc.data().videoId))
-
+      );
+  
+      const watchHistorySnapshot = await getDocs(watchHistoryQuery);
+      const watchedVideoIds = new Set(watchHistorySnapshot.docs.map((doc) => doc.data().videoId));
+  
       // Mark watched videos
       const videosWithWatchStatus = videoList.map((video) => ({
         ...video,
         watched: watchedVideoIds.has(video.id),
-      }))
-
-      setVideos(videosWithWatchStatus)
-      setFilteredVideos(videosWithWatchStatus)
-      setLoading(false)
+      }));
+  
+      setVideos(videosWithWatchStatus);
+      
+      // Filter out General and Miscellaneous videos for dashboard display only
+      const filteredForDisplay = videosWithWatchStatus.filter(
+        (video) => video.category !== "General" && video.category !== "Miscellaneous"
+      );
+      
+      setFilteredVideos(filteredForDisplay);
+      setLoading(false);
     } catch (error) {
-      console.error("Error fetching videos:", error)
-      setLoading(false)
+      console.error("Error fetching videos:", error);
+      setLoading(false);
       toast({
         title: "Error",
         description: "Failed to load videos. Please try again.",
         variant: "destructive",
-      })
+      });
     }
-  }
-
+  };
+  
+    
   const organizeVideosIntoModules = () => {
     // Group videos by category
-    const videosByCategory = filteredVideos.reduce(
-      (acc, video) => {
-        // Skip General and Miscellaneous categories as they're common for everyone
-        if (video.category === "General" || video.category === "Miscellaneous") {
-          return acc
-        }
+    const videosByCategory = filteredVideos.reduce((acc, video) => {
+      // Exclude General and Miscellaneous categories
+      if (video.category === "General" || video.category === "Miscellaneous") {
+        return acc;
+      }
 
-        const category = video.category || "Uncategorized"
-        if (!acc[category]) {
-          acc[category] = []
-        }
-        acc[category].push(video)
-        return acc
-      },
-      {} as Record<string, Video[]>,
-    )
-
-    const moduleArray: Module[] = []
-
+      const category = video.category || "Uncategorized";
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(video);
+      return acc;
+    }, {} as Record<string, Video[]>);
+  
+    const moduleArray: Module[] = [];
     // Calculate total duration for each module
     const calculateTotalDuration = (videos: Video[]): string => {
       let totalMinutes = 0
@@ -226,28 +259,50 @@ export default function Dashboard() {
         title: "No videos selected",
         description: "Please select at least one video to watch.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
-
-    // Create a playlist with selected videos
-    const selectedVideoObjects = videos.filter((video) => selectedVideos.includes(video.id))
-
+  
+    // Get the selected videos
+    const selectedVideoObjects = videos.filter((video) => selectedVideos.includes(video.id));
+    
+    // Get all General category videos (Company Introduction)
+    const generalVideos = videos.filter(video => video.category === "General");
+    
+    // Combine General videos with selected videos, ensuring General comes first
+    const allPlaylistVideos = [...generalVideos, ...selectedVideoObjects.filter(v => v.category !== "General")];
+    
+    // Get Miscellaneous videos
+    const miscVideos = videos.filter(video => video.category === "Miscellaneous");
+    
+    // Add Miscellaneous videos at the end
+    allPlaylistVideos.push(...miscVideos.filter(v => !allPlaylistVideos.some(pv => pv.id === v.id)));
+  
     // Store the playlist in localStorage
     const customPlaylist = {
       id: "custom-playlist",
-      videos: selectedVideoObjects,
+      videos: allPlaylistVideos,
       createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 },
+    };
+  
+    localStorage.setItem("currentPlaylist", JSON.stringify(customPlaylist));
+  
+    // Set as active playlist
+    const activePlaylist = {
+      id: "custom-playlist",
+      title: "Custom Playlist",
+      lastAccessed: new Date().toISOString(),
+      completionPercentage: 0,
+    };
+    localStorage.setItem("activePlaylist", JSON.stringify(activePlaylist));
+  
+    // Navigate to the first video in the playlist (which should be a General category video)
+    if (allPlaylistVideos.length > 0) {
+      router.push(`/video-player?videoId=${allPlaylistVideos[0].id}&playlistId=custom-playlist`);
     }
-
-    localStorage.setItem("currentPlaylist", JSON.stringify(customPlaylist))
-
-    // Navigate to the first video in the playlist
-    if (selectedVideoObjects.length > 0) {
-      router.push(`/video-player?videoId=${selectedVideoObjects[0].id}&playlistId=custom-playlist`)
-    }
-  }
-
+  };
+  
+  
   const handleLogout = () => {
     auth.signOut()
     router.push("/login")

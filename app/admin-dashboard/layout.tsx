@@ -5,21 +5,8 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
-import Image from "next/image"
 import { auth } from "@/firebase"
-import {
-  LayoutDashboard,
-  Video,
-  Upload,
-  BarChart,
-  MessageSquare,
-  FileText,
-  Settings,
-  LogOut,
-  Menu,
-  X,
-  LineChart,
-} from "lucide-react"
+import { LayoutDashboard, Video, Upload, MessageSquare, LogOut, Menu, X, LineChart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/app/theme-toggle"
 import { Logo } from "../components/logo"
@@ -27,12 +14,9 @@ import { Logo } from "../components/logo"
 const navigation = [
   { name: "Dashboard", href: "/admin-dashboard", icon: LayoutDashboard },
   { name: "Videos", href: "/admin-dashboard/videos", icon: Video },
-  { name: "Upload", href: "/admin-dashboard/upload", icon: Upload },
-
+  { name: "Upload", href: "/upload", icon: Upload },
   { name: "Feedback", href: "/admin-dashboard/feedback", icon: MessageSquare },
- 
   { name: "Individual", href: "/admin-dashboard/individual", icon: LineChart },
-
 ]
 
 export default function AdminDashboardLayout({
@@ -92,7 +76,6 @@ export default function AdminDashboardLayout({
               {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </Button>
             <Logo></Logo>
-
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
@@ -152,4 +135,3 @@ export default function AdminDashboardLayout({
     </div>
   )
 }
-

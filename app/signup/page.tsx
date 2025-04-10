@@ -44,9 +44,9 @@ export default function SignUp() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [name, setName] = useState("")
-  const [profession, setProfession] = useState("")
+
   const [companyName, setCompanyName] = useState("")
-  const [secondaryProfession, setSecondaryProfession] = useState("")
+
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -125,10 +125,7 @@ export default function SignUp() {
       errors.push("Passwords do not match")
     }
 
-    if (!profession) {
-      errors.push("Profession is required")
-    }
-
+ 
     if (!companyName) {
       errors.push("Company Name is required")
     }
@@ -151,9 +148,9 @@ export default function SignUp() {
         userId: userCredential.user.uid,
         email: userCredential.user.email,
         name: name,
-        profession: profession,
+        
         companyName: companyName,
-        secondaryProfession: secondaryProfession,
+     
         createdAt: serverTimestamp(),
         role: "user",
       })
@@ -265,40 +262,6 @@ export default function SignUp() {
                     />
                   </div>
 
-                  {/* Profession Select */}
-                  <div className="space-y-2">
-                    <Label htmlFor="profession">Primary Department</Label>
-                    <Select value={profession} onValueChange={setProfession} required>
-                      <SelectTrigger id="profession" className="h-10">
-                        <SelectValue placeholder="Select your primary department" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Secondary Profession Select */}
-                  <div className="space-y-2">
-                    <Label htmlFor="secondaryProfession">Secondary Department (Optional)</Label>
-                    <Select value={secondaryProfession} onValueChange={setSecondaryProfession}>
-                      <SelectTrigger id="secondaryProfession" className="h-10">
-                        <SelectValue placeholder="Select your secondary department" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        {categories.map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
 
                   {/* Password Input */}
                   <div className="space-y-2">
