@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs, orderBy } from "firebase/firestore"
+import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs, orderBy, updateDoc } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -47,6 +47,21 @@ interface Video {
   category?: string
   tags?: string[]
 }
+interface VideoWatchEvent {
+  videoId: string;
+  playlistId?: string;
+  userId: string;
+  userEmail: string;
+  lastWatchedAt: any; // Firebase timestamp
+  progress: number; // Percentage of video watched (0-100)
+  completed: boolean;
+  watchDuration: number; // Total time spent watching in seconds
+  milestones: number[]; // Array of reached milestones (25, 50, 75, 100)
+  category?: string;
+  tags?: string[];
+  videoTitle?: string;
+}
+
 
 interface Module {
   name: string
@@ -115,14 +130,12 @@ export default function VideoPlayerPage() {
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const videoChangeRef = useRef<boolean>(false)
 
-
   useEffect(() => {
     // Check if user is authenticated
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
       if (currentUser) {
         setUser(currentUser)
 
-        
         // Fetch last watched video if no specific videoId is provided
         if (!videoId) {
           const lastWatched = await fetchLastWatchedVideo(currentUser.uid)
@@ -132,7 +145,6 @@ export default function VideoPlayerPage() {
             if (playlistId) {
               fetchPlaylist(playlistId, lastWatched.videoId)
               fetchWatchHistory()
-
             } else {
               // Redirect to the video player with the last watched video
               router.push(
@@ -143,12 +155,10 @@ export default function VideoPlayerPage() {
             // If no last watched video but we have a playlistId, fetch the playlist
             fetchPlaylist(playlistId)
             fetchWatchHistory()
-
           }
         } else if (playlistId) {
           // If we have both videoId and playlistId, fetch the playlist
           fetchPlaylist(playlistId, videoId)
-          
         }
       } else {
         // Redirect to login if not authenticated
@@ -170,43 +180,42 @@ export default function VideoPlayerPage() {
       unlockNextVideoIfNeeded(currentVideo.id)
     }
   }, [videoWatchEvents, currentVideo])
-  
 
   // Fetch the last watched video for a user
   const fetchLastWatchedVideo = async (userId: string) => {
     try {
       const watchHistoryQuery = query(
         collection(db, "videoWatchEvents"),
-        where("userId", "==", userId),
-        where("eventType", "in", ["play", "pause", "completion"]),
-      )
-
-      const watchHistorySnapshot = await getDocs(watchHistoryQuery)
-
-      if (watchHistorySnapshot.empty) return null
-
+        where("userId", "==", userId)
+      );
+  
+      const watchHistorySnapshot = await getDocs(watchHistoryQuery);
+  
+      if (watchHistorySnapshot.empty) return null;
+  
       // Explicitly type the mapped data
       const sortedEvents = watchHistorySnapshot.docs
         .map((doc) => ({
           ...(doc.data() as VideoWatchEvent),
           id: doc.id,
-          watchedAt: doc.data().watchedAt?.toDate() || new Date(0),
+          lastWatchedAt: doc.data().lastWatchedAt?.toDate() || new Date(0),
         }))
-        .sort((a, b) => b.watchedAt - a.watchedAt)
-
+        .sort((a, b) => b.lastWatchedAt - a.lastWatchedAt);
+  
       if (sortedEvents.length > 0) {
         return {
           videoId: sortedEvents[0].videoId,
           playlistId: sortedEvents[0].playlistId,
-        }
+        };
       }
-
-      return null
+  
+      return null;
     } catch (error) {
-      console.error("Error fetching last watched video:", error)
-      return null
+      console.error("Error fetching last watched video:", error);
+      return null;
     }
-  }
+  };
+  
 
   useEffect(() => {
     if (currentVideo && currentVideo.id) {
@@ -258,34 +267,44 @@ export default function VideoPlayerPage() {
   }, [])
 
   // Add a new useEffect to handle video playback when currentVideo changes
-  useEffect(() => {
-    if (currentVideo && videoRef.current && videoChangeRef.current) {
-      // Reset video state
-      setProgress(0)
-      setCurrentTime(0)
-      setIsPlaying(false)
-
-      // Auto-play the video after a short delay to ensure the video element is ready
-      const playTimer = setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.load()
-          videoRef.current
-            .play()
-            .then(() => {
-              setIsPlaying(true)
-              setWatchStartTime(Date.now() / 1000)
-              videoChangeRef.current = false
-            })
-            .catch((error) => {
-              console.error("Error playing video:", error)
-              videoChangeRef.current = false
-            })
-        }
-      }, 300)
-
-      return () => clearTimeout(playTimer)
+  // Add this to the useEffect that handles video changes
+// Add this to the useEffect that handles video changes
+useEffect(() => {
+  if (currentVideo && videoRef.current && videoChangeRef.current) {
+    // Clear session tracking for the previous video if there was one
+    if (playlist && currentVideoIndex > 0) {
+      const prevVideoId = playlist.videos[currentVideoIndex - 1].id;
+      clearVideoSessionTracking(prevVideoId);
     }
-  }, [currentVideo])
+
+    // Reset video state
+    setProgress(0);
+    setCurrentTime(0);
+    setIsPlaying(false);
+
+    // Auto-play the video after a short delay
+    const playTimer = setTimeout(() => {
+      if (videoRef.current) {
+        videoRef.current.load();
+        videoRef.current
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+            setWatchStartTime(Date.now() / 1000);
+            videoChangeRef.current = false;
+          })
+          .catch((error) => {
+            console.error("Error playing video:", error);
+            videoChangeRef.current = false;
+          });
+      }
+    }, 300);
+
+    return () => clearTimeout(playTimer);
+  }
+}, [currentVideo]);
+
+
 
   // Add this new function to fetch videos directly from Firestore
   const fetchCategoryVideos = async (category: string) => {
@@ -316,28 +335,31 @@ export default function VideoPlayerPage() {
   }
 
   const organizeIntoModules = (videos: Video[]) => {
-    if (!videos || !Array.isArray(videos) || videos.length === 0) return;
-  
+    if (!videos || !Array.isArray(videos) || videos.length === 0) return
+
     // Create modules array
-    const moduleArray: Module[] = [];
-  
+    const moduleArray: Module[] = []
+
     // Group videos by category
-    const videosByCategory = videos.reduce((acc, video) => {
-      const category = video.category || "Uncategorized";
-      if (!acc[category]) {
-        acc[category] = [];
-      }
-      acc[category].push(video);
-      return acc;
-    }, {} as Record<string, Video[]>);
-  
+    const videosByCategory = videos.reduce(
+      (acc, video) => {
+        const category = video.category || "Uncategorized"
+        if (!acc[category]) {
+          acc[category] = []
+        }
+        acc[category].push(video)
+        return acc
+      },
+      {} as Record<string, Video[]>,
+    )
+
     // 1. Always add Company Introduction module first
     moduleArray.push({
       name: "Company Introduction",
       category: "General",
       videos: videosByCategory["General"] || [],
-    });
-  
+    })
+
     // 2. Add user profession modules
     userProfessions.forEach((profession) => {
       if (videosByCategory[profession]) {
@@ -345,10 +367,10 @@ export default function VideoPlayerPage() {
           name: profession,
           category: profession,
           videos: videosByCategory[profession],
-        });
+        })
       }
-    });
-  
+    })
+
     // 3. Add other categories as modules (except General and Miscellaneous)
     Object.entries(videosByCategory).forEach(([category, categoryVideos]) => {
       if (category !== "General" && category !== "Miscellaneous") {
@@ -356,31 +378,28 @@ export default function VideoPlayerPage() {
           name: category,
           category,
           videos: categoryVideos,
-        });
+        })
       }
-    });
-  
+    })
+
     // 4. Always add Miscellaneous module last
     moduleArray.push({
       name: "Miscellaneous",
       category: "Miscellaneous",
       videos: videosByCategory["Miscellaneous"] || [],
-    });
-  
-    setModules(moduleArray);
-  
+    })
+
+    setModules(moduleArray)
+
     // Set active module based on current video
     if (currentVideo) {
-      const moduleIndex = moduleArray.findIndex((module) =>
-        module.videos.some((video) => video.id === currentVideo.id)
-      );
-  
+      const moduleIndex = moduleArray.findIndex((module) => module.videos.some((video) => video.id === currentVideo.id))
+
       if (moduleIndex !== -1) {
-        setActiveModuleIndex(moduleIndex);
+        setActiveModuleIndex(moduleIndex)
       }
     }
-  };
-  
+  }
 
   // Update the fetchPlaylist function to use the async organizeIntoModules
   const fetchPlaylist = async (id: string, initialVideoId?: string) => {
@@ -576,8 +595,6 @@ export default function VideoPlayerPage() {
         // Mark this video as played in this session
         sessionStorage.setItem(sessionKey, "true")
       }
-
-      
     }
   }
 
@@ -597,81 +614,93 @@ export default function VideoPlayerPage() {
         setWatchStartTime(null)
 
         // Track video pause in Google Analytics
-     
       }
     }
   }
 
   const handleVideoEnded = () => {
-    if (!currentVideo || !playlist || !playlist.videos || !Array.isArray(playlist.videos)) return
-
-    setIsPlaying(false)
-
+    if (!currentVideo || !playlist || !playlist.videos || !Array.isArray(playlist.videos)) return;
+  
+    setIsPlaying(false);
+  
     // Calculate final watch duration for analytics
     if (watchStartTime) {
-      const watchDuration = Date.now() / 1000 - watchStartTime
-
+      const watchDuration = Date.now() / 1000 - watchStartTime;
+  
       // Mark current video as watched
-      const updatedWatchEvents = { ...videoWatchEvents }
-      updatedWatchEvents[currentVideo.id] = true
-
+      const updatedWatchEvents = { ...videoWatchEvents };
+      updatedWatchEvents[currentVideo.id] = true;
+  
       // Unlock the next video if it exists and is currently locked
       if (currentVideoIndex + 1 < playlist.videos.length) {
-        const nextVideoId = playlist.videos[currentVideoIndex + 1].id
+        const nextVideoId = playlist.videos[currentVideoIndex + 1].id;
         if (updatedWatchEvents[nextVideoId] === null) {
-          updatedWatchEvents[nextVideoId] = false // Unlock but not watched
+          updatedWatchEvents[nextVideoId] = false; // Unlock but not watched
         }
       }
-
-      setVideoWatchEvents(updatedWatchEvents)
-
-      // Log completion event to Firestore
-      logVideoEvent("completion", false, watchDuration, true)
-
+  
+      setVideoWatchEvents(updatedWatchEvents);
+  
+      // Check if we've already logged a completion event for this video in this session
+      const sessionKey = `completed_${currentVideo.id}`;
+      const alreadyCompleted = sessionStorage.getItem(sessionKey);
+  
+      if (!alreadyCompleted) {
+        // Log completion event to Firestore
+        logVideoEvent("completion", false, watchDuration, true, 100);
+  
+        // Mark this video as completed in this session
+        sessionStorage.setItem(sessionKey, "true");
+      }
+  
       // Reset watch start time
-      setWatchStartTime(null)
-
-      // Track video completion in Google Analytics
-    
-
+      setWatchStartTime(null);
+  
       // Auto play next video if available
       if (currentVideoIndex + 1 < playlist.videos.length) {
-        const nextIndex = currentVideoIndex + 1
-        const nextVideoId = playlist.videos[nextIndex].id
-
+        const nextIndex = currentVideoIndex + 1;
+        const nextVideoId = playlist.videos[nextIndex].id;
+  
         if (updatedWatchEvents[nextVideoId] !== null) {
-          videoChangeRef.current = true
-          setCurrentVideoIndex(nextIndex)
-          setCurrentVideo(playlist.videos[nextIndex])
-
+          videoChangeRef.current = true;
+          setCurrentVideoIndex(nextIndex);
+          setCurrentVideo(playlist.videos[nextIndex]);
+  
+          // Clear session storage for the previous video to allow a fresh document
+          // for the next video when it's watched
+          sessionStorage.removeItem(`played_${currentVideo.id}`);
+          sessionStorage.removeItem(`completed_${currentVideo.id}`);
+          
           // Update URL without refreshing the page
-          const newUrl = `/video-player?videoId=${nextVideoId}&playlistId=${playlist.id}`
-          window.history.pushState({}, "", newUrl)
-
+          const newUrl = `/video-player?videoId=${nextVideoId}&playlistId=${playlist.id}`;
+          window.history.pushState({}, "", newUrl);
+  
           // Update active module if needed
           if (modules.length > 0) {
             const moduleIndex = modules.findIndex((module) =>
-              module.videos.some((video) => video.id === playlist.videos[nextIndex].id),
-            )
-
+              module.videos.some((video) => video.id === playlist.videos[nextIndex].id)
+            );
+  
             if (moduleIndex !== -1 && moduleIndex !== activeModuleIndex) {
-              setActiveModuleIndex(moduleIndex)
+              setActiveModuleIndex(moduleIndex);
             }
           }
         } else {
           // Show feedback dialog when playlist is completed
-          setFeedbackOpen(true)
+          setFeedbackOpen(true);
         }
       } else {
         // Show feedback dialog when playlist is completed
-        setFeedbackOpen(true)
+        setFeedbackOpen(true);
       }
     }
-  }
+  };
+  
+  
 
   const checkAndSetVideoWatched = async (videoId: string) => {
     if (!user || !playlist || !videoId) return
-  
+
     try {
       // Query Firestore for watch history of the current video
       const watchHistoryQuery = query(
@@ -680,17 +709,17 @@ export default function VideoPlayerPage() {
         where("videoId", "==", videoId),
         where("completed", "==", true),
       )
-  
+
       const watchHistorySnapshot = await getDocs(watchHistoryQuery)
-  
+
       if (!watchHistorySnapshot.empty) {
         // If the video has been watched, update its status
         const updatedWatchEvents = { ...videoWatchEvents }
         updatedWatchEvents[videoId] = true
-  
+
         // Find the current video index in the playlist
         const currentIndex = playlist.videos.findIndex((v) => v.id === videoId)
-  
+
         // Unlock the next video if it exists and is currently locked
         if (currentIndex !== -1 && currentIndex + 1 < playlist.videos.length) {
           const nextVideoId = playlist.videos[currentIndex + 1].id
@@ -698,67 +727,73 @@ export default function VideoPlayerPage() {
             updatedWatchEvents[nextVideoId] = false // Unlock but not watched
           }
         }
-  
+
         setVideoWatchEvents(updatedWatchEvents)
-  
-        // Optionally log rewatch event
-        logVideoEvent("rewatch", true)
+
+        // Don't log rewatch event here - it will be logged on play if needed
       }
     } catch (error) {
       console.error("Error checking watch status:", error)
     }
   }
-  
+
   // Fetch watch history for all videos
   const fetchWatchHistory = async () => {
-    if (!user || !playlist || !playlist.videos || !Array.isArray(playlist.videos)) return
+    if (!user || !playlist || !playlist.videos || !Array.isArray(playlist.videos)) return;
   
     try {
-      // Query Firestore for all completed videos by this user
+      // Query Firestore for all video watch events by this user
       const watchHistoryQuery = query(
         collection(db, "videoWatchEvents"),
-        where("userId", "==", user.uid),
-        where("completed", "==", true),
-      )
+        where("userId", "==", user.uid)
+      );
   
-      const watchHistorySnapshot = await getDocs(watchHistoryQuery)
-      const watchedVideoIds = new Set(watchHistorySnapshot.docs.map((doc) => doc.data().videoId))
+      const watchHistorySnapshot = await getDocs(watchHistoryQuery);
+      
+      if (watchHistorySnapshot.empty) return;
+      
+      // Create a map of videoId to completion status
+      const videoCompletionMap: { [videoId: string]: boolean } = {};
+      watchHistorySnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        videoCompletionMap[data.videoId] = data.completed || data.progress >= 100;
+      });
   
-      if (watchedVideoIds.size > 0) {
-        // Create a new watch events object
-        const updatedWatchEvents = { ...videoWatchEvents }
+      // Create a new watch events object
+      const updatedWatchEvents = { ...videoWatchEvents };
   
-        // Mark all watched videos
-        playlist.videos.forEach((video) => {
-          if (watchedVideoIds.has(video.id)) {
-            updatedWatchEvents[video.id] = true
-          }
-        })
-  
-        // Unlock videos after watched ones in sequence
-        let lastUnlockedIndex = 0
-        for (let i = 0; i < playlist.videos.length; i++) {
-          const videoId = playlist.videos[i].id
-  
-          // If this video is watched, update lastUnlockedIndex
-          if (updatedWatchEvents[videoId] === true) {
-            lastUnlockedIndex = i + 1
-          }
-  
-          // Unlock videos up to lastUnlockedIndex
-          if (i <= lastUnlockedIndex && updatedWatchEvents[videoId] === null) {
-            updatedWatchEvents[videoId] = false // Unlocked but not watched
-          }
+      // Mark all watched videos
+      playlist.videos.forEach((video) => {
+        if (videoCompletionMap[video.id]) {
+          updatedWatchEvents[video.id] = true;
         }
+      });
   
-        // Update state
-        setVideoWatchEvents(updatedWatchEvents)
+      // Unlock videos after watched ones in sequence
+      let lastUnlockedIndex = 0;
+      for (let i = 0; i < playlist.videos.length; i++) {
+        const videoId = playlist.videos[i].id;
+  
+        // If this video is watched, update lastUnlockedIndex
+        if (updatedWatchEvents[videoId] === true) {
+          lastUnlockedIndex = i + 1;
+        }
+        
+        // Unlock videos up to lastUnlockedIndex
+        if (i <= lastUnlockedIndex && updatedWatchEvents[videoId] === null) {
+          updatedWatchEvents[videoId] = false; // Unlocked but not watched
+        }
       }
-    } catch (error) {
-      console.error("Error fetching watch history:", error)
-    }
-  }
   
+      // Update state
+      setVideoWatchEvents(updatedWatchEvents);
+    } catch (error) {
+      console.error("Error fetching watch history:", error);
+    }
+  };
+  
+ 
+
   const fetchVideoFeedbacks = async (videoId: string) => {
     if (!user || !videoId) return
 
@@ -797,25 +832,25 @@ export default function VideoPlayerPage() {
 
   const handleVideoTimeUpdate = () => {
     if (videoRef.current && currentVideo) {
-      const current = videoRef.current.currentTime
-      const videoDuration = videoRef.current.duration
-
+      const current = videoRef.current.currentTime;
+      const videoDuration = videoRef.current.duration;
+  
       // Update progress state
-      setCurrentTime(current)
-      setDuration(videoDuration)
-      setProgress((current / videoDuration) * 100)
-
+      setCurrentTime(current);
+      setDuration(videoDuration);
+      const currentProgressPercentage = Math.floor((current / videoDuration) * 100);
+      setProgress(currentProgressPercentage);
+  
       // Update video progress for this specific video
       setVideoProgress((prev) => ({
         ...prev,
-        [currentVideo.id]: (current / videoDuration) * 100,
-      }))
-
-      // Track progress milestones (25%, 50%, 75%)
-      const milestones = [25, 50, 75]
-      const currentProgress = (current / videoDuration) * 100
-      const currentMilestone = Math.floor(currentProgress / 25) * 25
-
+        [currentVideo.id]: currentProgressPercentage,
+      }));
+  
+      // Track progress milestones (25%, 50%, 75%, 100%)
+      const milestones = [25, 50, 75, 100];
+      const currentMilestone = Math.floor(currentProgressPercentage / 25) * 25;
+  
       if (
         milestones.includes(currentMilestone) &&
         (!videoProgressMilestones[currentVideo.id] ||
@@ -823,21 +858,34 @@ export default function VideoPlayerPage() {
       ) {
         // Update tracked milestones
         setVideoProgressMilestones((prev) => {
-          const updatedMilestones = { ...prev }
+          const updatedMilestones = { ...prev };
           if (!updatedMilestones[currentVideo.id]) {
-            updatedMilestones[currentVideo.id] = []
+            updatedMilestones[currentVideo.id] = [];
           }
-          updatedMilestones[currentVideo.id] = [...updatedMilestones[currentVideo.id], currentMilestone]
-          return updatedMilestones
-        })
-
-        // Log milestone event with a valid progressPercentage
-        logVideoEvent("milestone", false, current, false, currentMilestone)
-
+          updatedMilestones[currentVideo.id] = [...updatedMilestones[currentVideo.id], currentMilestone];
+          return updatedMilestones;
+        });
+  
+        // Check if we've already logged this milestone in this session
+        const sessionKey = `milestone_${currentVideo.id}_${currentMilestone}`;
+        const alreadyTracked = sessionStorage.getItem(sessionKey);
+  
+        if (!alreadyTracked) {
+          // Log milestone event with a valid progressPercentage
+          logVideoEvent("milestone", false, current, currentMilestone === 100, currentMilestone);
+  
+          // Mark this milestone as tracked in this session
+          sessionStorage.setItem(sessionKey, "true");
+          
+          // If this is 100% completion, create a new document for the next watch
+          if (currentMilestone === 100) {
+            sessionStorage.removeItem(`completed_${currentVideo.id}`);
+          }
+        }
       }
     }
-  }
-
+  };
+  
   const logVideoEvent = async (
     eventType: string,
     isRewatch: boolean,
@@ -845,42 +893,100 @@ export default function VideoPlayerPage() {
     completed?: boolean,
     progressPercentage?: number,
   ) => {
-    if (!currentVideo || !user || !playlist) return
-
+    if (!currentVideo || !user || !playlist) return;
+  
     try {
+      // First, check if a document already exists for this video and user
+      const watchEventsRef = collection(db, "videoWatchEvents");
+      const q = query(
+        watchEventsRef,
+        where("userId", "==", user.uid),
+        where("videoId", "==", currentVideo.id)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      // Prepare the event data to update
       const eventData: any = {
-        videoId: currentVideo.id,
-        videoTitle: currentVideo.title || "Unknown Video",
-        userId: user.uid,
-        userEmail: user.email || "Unknown User",
-        playlistId: playlist.id,
-        watchedAt: serverTimestamp(),
-        watchDuration: watchDuration || 0,
-        completed: completed || false,
-        isRewatch: isRewatch,
-        eventType,
-        category: currentVideo.category || "Uncategorized",
-        tags: currentVideo.tags || [],
+        lastWatchedAt: serverTimestamp(),
+        eventType, // Keep track of the latest event type
+      };
+      
+      // Add watch duration (accumulate it if document exists)
+      if (watchDuration) {
+        eventData.watchDuration = watchDuration + 
+          (querySnapshot.empty ? 0 : (querySnapshot.docs[0].data().watchDuration || 0));
       }
-
+      
+      // Update progress if provided and it's higher than existing progress
       if (progressPercentage !== undefined) {
-        eventData.progressPercentage = progressPercentage
+        eventData.progress = Math.max(
+          progressPercentage, 
+          querySnapshot.empty ? 0 : (querySnapshot.docs[0].data().progress || 0)
+        );
       }
-
-      await addDoc(collection(db, "videoWatchEvents"), eventData)
+      
+      // Handle completion status
+      if (completed) {
+        eventData.completed = true;
+        eventData.progress = 100;
+      }
+      
+      // Track video metadata
+      eventData.videoTitle = currentVideo.title || "Unknown Video";
+      eventData.category = currentVideo.category || "Uncategorized";
+      eventData.tags = currentVideo.tags || [];
+      
+      // Handle milestones (25%, 50%, 75%, 100%)
+      if (progressPercentage !== undefined && progressPercentage % 25 === 0) {
+        const currentMilestones = querySnapshot.empty ? [] : (querySnapshot.docs[0].data().milestones || []);
+        if (!currentMilestones.includes(progressPercentage)) {
+          eventData.milestones = [...currentMilestones, progressPercentage];
+        }
+      }
+      
+      // If document exists, update it
+      if (!querySnapshot.empty) {
+        const docRef = doc(db, "videoWatchEvents", querySnapshot.docs[0].id);
+        await updateDoc(docRef, eventData);
+      } 
+      // If document doesn't exist, create a new one
+      else {
+        await addDoc(watchEventsRef, {
+          videoId: currentVideo.id,
+          userId: user.uid,
+          userEmail: user.email || "Unknown User",
+          playlistId: playlist.id,
+          progress: progressPercentage || 0,
+          completed: completed || false,
+          isRewatch: isRewatch,
+          milestones: progressPercentage && progressPercentage % 25 === 0 ? [progressPercentage] : [],
+          firstWatchedAt: serverTimestamp(),
+          ...eventData
+        });
+      }
     } catch (error) {
-      console.error("Error logging video event:", error)
+      console.error("Error logging video event:", error);
     }
-  }
+  };
+  
+  
 
   const playNextVideo = () => {
-    if (!playlist || !playlist.videos || !Array.isArray(playlist.videos) || playlist.videos.length === 0 || !currentVideo) return
-  
+    if (
+      !playlist ||
+      !playlist.videos ||
+      !Array.isArray(playlist.videos) ||
+      playlist.videos.length === 0 ||
+      !currentVideo
+    )
+      return
+
     const nextIndex = currentVideoIndex + 1
     if (nextIndex < playlist.videos.length) {
       const nextVideoId = playlist.videos[nextIndex].id
       const currentVideoWatched = videoWatchEvents[currentVideo.id] === true
-  
+
       // Check if the next video is unlocked OR if current video is watched
       if (videoWatchEvents[nextVideoId] === true || videoWatchEvents[nextVideoId] === false || currentVideoWatched) {
         // If current video is watched but next video is locked, unlock it
@@ -889,23 +995,23 @@ export default function VideoPlayerPage() {
           updatedWatchEvents[nextVideoId] = false // Unlock but not watched
           setVideoWatchEvents(updatedWatchEvents)
         }
-  
+
         videoChangeRef.current = true
         setCurrentVideoIndex(nextIndex)
         setCurrentVideo(playlist.videos[nextIndex])
         setProgress(0)
         setCurrentTime(0)
-  
+
         // Update URL without refreshing the page
         const newUrl = `/video-player?videoId=${nextVideoId}&playlistId=${playlist.id}`
         window.history.pushState({}, "", newUrl)
-  
+
         // Update active module if needed
         if (modules.length > 0) {
           const moduleIndex = modules.findIndex((module) =>
-            module.videos.some((video) => video.id === playlist.videos[nextIndex].id)
+            module.videos.some((video) => video.id === playlist.videos[nextIndex].id),
           )
-  
+
           if (moduleIndex !== -1 && moduleIndex !== activeModuleIndex) {
             setActiveModuleIndex(moduleIndex)
           }
@@ -919,16 +1025,15 @@ export default function VideoPlayerPage() {
       }
     }
   }
-  
 
   const unlockNextVideoIfNeeded = (videoId: string) => {
     if (!playlist || !playlist.videos) return
-  
+
     const currentIndex = playlist.videos.findIndex((v) => v.id === videoId)
     if (currentIndex === -1 || currentIndex >= playlist.videos.length - 1) return
-  
+
     const nextVideoId = playlist.videos[currentIndex + 1].id
-    
+
     // Only update if the current video is watched and next video is locked
     if (videoWatchEvents[videoId] === true && videoWatchEvents[nextVideoId] === null) {
       const updatedWatchEvents = { ...videoWatchEvents }
@@ -936,7 +1041,6 @@ export default function VideoPlayerPage() {
       setVideoWatchEvents(updatedWatchEvents)
     }
   }
-  
 
   const playPreviousVideo = () => {
     if (!playlist || !playlist.videos || !Array.isArray(playlist.videos) || playlist.videos.length === 0) return
@@ -1012,8 +1116,6 @@ export default function VideoPlayerPage() {
         title: "Thank you!",
         description: "Your feedback has been submitted successfully.",
       })
-
- 
     } catch (error) {
       console.error("Error submitting feedback:", error)
       setSubmittingFeedback(false)
@@ -1054,8 +1156,6 @@ export default function VideoPlayerPage() {
         title: "Thank you!",
         description: "Your feedback for this video has been submitted successfully.",
       })
-
-      
     } catch (error) {
       console.error("Error submitting video feedback:", error)
       setSubmittingVideoFeedback(false)
@@ -1123,8 +1223,6 @@ export default function VideoPlayerPage() {
       // Update URL without refreshing the page
       const newUrl = `/video-player?videoId=${video.id}&playlistId=${playlist.id}`
       window.history.pushState({}, "", newUrl)
-
-
     } else {
       toast({
         title: "Video Locked",
@@ -1139,8 +1237,21 @@ export default function VideoPlayerPage() {
     if (videoRef.current) {
       videoRef.current.playbackRate = rate
       setPlaybackRate(rate)
-
     }
+  }
+
+  // Add this function to clear session tracking when changing videos
+  const clearVideoSessionTracking = (videoId: string) => {
+    // Clear all session storage keys related to the previous video
+    const keysToRemove = [
+      `played_${videoId}`,
+      `completed_${videoId}`,
+      `milestone_${videoId}_25`,
+      `milestone_${videoId}_50`,
+      `milestone_${videoId}_75`,
+    ]
+
+    keysToRemove.forEach((key) => sessionStorage.removeItem(key))
   }
 
   if (loading) {
@@ -1282,20 +1393,19 @@ export default function VideoPlayerPage() {
 
                         {/* Next Video Button */}
                         <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-white hover:bg-white/20"
-                        onClick={playNextVideo}
-                        disabled={
-                          !playlist?.videos ||
-                          !Array.isArray(playlist.videos) ||
-                          currentVideoIndex >= playlist.videos.length - 1 ||
-                          (!isVideoPlayable(currentVideoIndex + 1) && videoWatchEvents[currentVideo.id] !== true)
-                        }
-                      >
-                        <SkipForward className="h-5 w-5" />
-                      </Button>
-
+                          variant="ghost"
+                          size="icon"
+                          className="text-white hover:bg-white/20"
+                          onClick={playNextVideo}
+                          disabled={
+                            !playlist?.videos ||
+                            !Array.isArray(playlist.videos) ||
+                            currentVideoIndex >= playlist.videos.length - 1 ||
+                            (!isVideoPlayable(currentVideoIndex + 1) && videoWatchEvents[currentVideo.id] !== true)
+                          }
+                        >
+                          <SkipForward className="h-5 w-5" />
+                        </Button>
 
                         {/* Mute Button */}
                         <Button
@@ -1366,8 +1476,6 @@ export default function VideoPlayerPage() {
                 <MessageSquare className="h-4 w-4" />
                 Rate & Review This Video
               </Button>
-
-        
             </div>
 
             {/* Video Feedbacks Section */}
