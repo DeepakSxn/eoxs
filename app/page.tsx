@@ -49,7 +49,7 @@ export default function Home() {
                   <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl">
                     Demo Video Management & Analytics Tool
                   </h1>
-                  <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
+                  <p className="mx-auto max-w-[700px] text-black dark:text-white md:text-xl">
                     Access customized software demo videos, track engagement, and get valuable insights.
                   </p>
                 </div>

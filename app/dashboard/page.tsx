@@ -253,7 +253,7 @@ export default function Dashboard() {
     })
   }
 
-  const handleWatchSelected = () => {
+  const handleWatchSelected = async () => {
     if (selectedVideos.length === 0) {
       toast({
         title: "No videos selected",
@@ -269,36 +269,75 @@ export default function Dashboard() {
     // Get all General category videos (Company Introduction)
     const generalVideos = videos.filter(video => video.category === "General");
     
-    // Combine General videos with selected videos, ensuring General comes first
-    const allPlaylistVideos = [...generalVideos, ...selectedVideoObjects.filter(v => v.category !== "General")];
-    
     // Get Miscellaneous videos
     const miscVideos = videos.filter(video => video.category === "Miscellaneous");
+
+    try {
+      // Query Firestore for all completed videos by this user
+      const watchHistoryQuery = query(
+        collection(db, "videoWatchEvents"),
+        where("userId", "==", auth.currentUser?.uid),
+        where("completed", "==", true)
+      );
+
+      const watchHistorySnapshot = await getDocs(watchHistoryQuery);
+      const watchedVideoIds = new Set(watchHistorySnapshot.docs.map(doc => doc.data().videoId));
+
+      // Create the playlist with all videos in the correct order
+      const selectedNonGeneralVideos = selectedVideoObjects.filter(v => v.category !== "General");
+      
+      // First, add all general videos
+      let allPlaylistVideos: typeof videos = [...generalVideos];
+      
+      // Then add selected videos (excluding General category)
+      allPlaylistVideos = [...allPlaylistVideos, ...selectedNonGeneralVideos];
+      
+      // Finally add Miscellaneous videos that aren't already in the playlist
+      const existingVideoIds = new Set([...generalVideos, ...selectedNonGeneralVideos].map(v => v.id));
+      const uniqueMiscVideos = miscVideos.filter(v => !existingVideoIds.has(v.id));
+      allPlaylistVideos = [...allPlaylistVideos, ...uniqueMiscVideos];
+
+      // Find the first unwatched video to start playback
+      let firstVideoToPlay: string;
+
+      // First, check for unwatched general videos
+      const firstUnwatchedGeneral = generalVideos.find(video => !watchedVideoIds.has(video.id));
+      
+      if (firstUnwatchedGeneral) {
+        // If there's an unwatched general video, start with that
+        firstVideoToPlay = firstUnwatchedGeneral.id;
+      } else {
+        // If all general videos are watched, start with the first selected video
+        firstVideoToPlay = selectedVideoObjects[0].id;
+      }
     
-    // Add Miscellaneous videos at the end
-    allPlaylistVideos.push(...miscVideos.filter(v => !allPlaylistVideos.some(pv => pv.id === v.id)));
-  
-    // Store the playlist in localStorage
-    const customPlaylist = {
-      id: "custom-playlist",
-      videos: allPlaylistVideos,
-      createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 },
-    };
-  
-    localStorage.setItem("currentPlaylist", JSON.stringify(customPlaylist));
-  
-    // Set as active playlist
-    const activePlaylist = {
-      id: "custom-playlist",
-      title: "Custom Playlist",
-      lastAccessed: new Date().toISOString(),
-      completionPercentage: 0,
-    };
-    localStorage.setItem("activePlaylist", JSON.stringify(activePlaylist));
-  
-    // Navigate to the first video in the playlist (which should be a General category video)
-    if (allPlaylistVideos.length > 0) {
-      router.push(`/video-player?videoId=${allPlaylistVideos[0].id}&playlistId=custom-playlist`);
+      // Store the playlist in localStorage
+      const customPlaylist = {
+        id: "custom-playlist",
+        videos: allPlaylistVideos,
+        createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 },
+      };
+    
+      localStorage.setItem("currentPlaylist", JSON.stringify(customPlaylist));
+    
+      // Set as active playlist
+      const activePlaylist = {
+        id: "custom-playlist",
+        title: "Custom Playlist",
+        lastAccessed: new Date().toISOString(),
+        completionPercentage: 0,
+      };
+      localStorage.setItem("activePlaylist", JSON.stringify(activePlaylist));
+    
+      // Navigate to the first unwatched video
+      router.push(`/video-player?videoId=${firstVideoToPlay}&playlistId=custom-playlist`);
+    } catch (error) {
+      console.error("Error creating playlist:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create playlist. Please try again.",
+        variant: "destructive",
+      });
     }
   };
   
