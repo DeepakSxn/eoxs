@@ -22,7 +22,7 @@ export default function Home() {
           sizes="100vw"
           className="object-cover"
         />
-        <div className="absolute inset-0 bg-white/40 dark:bg-black/50" />
+        <div className="absolute inset-0 bg-white/0 dark:bg-black/50" />
       </div>
 
       {/* Content wrapper with higher z-index */}
@@ -47,10 +47,10 @@ export default function Home() {
               <div className="flex flex-col items-center justify-center space-y-4 text-center">
                 <div className="space-y-2">
                   <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl">
-                    Demo Video Management & Analytics Tool
+                  VIEWLOX: Where steel engineering meets powerful demonstration
                   </h1>
-                  <p className="mx-auto max-w-[700px] text-black dark:text-white md:text-xl">
-                    Access customized software demo videos, track engagement, and get valuable insights.
+                  <p className="mx-auto max-w-[700px] text-black  dark:text-white md:text-xl">
+                    
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-4 justify-center">
@@ -65,7 +65,7 @@ export default function Home() {
           </section>
         </main>
 
-        <footer className="bg-white/80 dark:bg-neutral-900/80 border-t border-neutral-200 dark:border-neutral-800 py-8 backdrop-blur-sm">
+        <footer className="bg-white/40 dark:bg-neutral-900/80 border-t border-neutral-200 dark:border-neutral-800 py-8 backdrop-blur-sm">
           <div className="container mx-auto px-4 max-w-6xl">
             <div className="flex flex-col md:flex-row justify-between gap-8">
               {/* Certified Engineers Section - Left Side */}
@@ -76,7 +76,7 @@ export default function Home() {
                 </div>
                 
                 <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-6">
-                  © {new Date().getFullYear()} www.exxs.com. All rights reserved.
+                  © {new Date().getFullYear()} www.exos.com. All rights reserved.
                 </div>
                 
                 <div className="flex space-x-4">
