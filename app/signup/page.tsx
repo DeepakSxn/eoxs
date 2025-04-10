@@ -95,6 +95,7 @@ export default function SignUp() {
     fetchCategories()
   }, [])
   
+  
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)

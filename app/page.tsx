@@ -58,7 +58,7 @@ export default function Home() {
                 </div>
                 <div className="flex flex-wrap gap-4 justify-center">
                   <Link href="/login">
-                  <Button size="lg" className="bg-gray-500 hover:bg-gray-600 transition-all">
+                  <Button size="lg" className="bg-green-700 hover:bg-green-600 transition-all">
                   Get Started
                   </Button>
 
@@ -108,10 +108,9 @@ export default function Home() {
                   </p>
                   <p>
                     All the personal information that you submit on the website - (Name, Email, Phone and Project Details) will not be sold, shared or rented to others. Our sales team or the team of software developers only use this information to send updates about our company and projects or contact you if requested or find it necessary.
-                  </p>
-                  <p>
+                  
                     You may opt out of receiving our communication by dropping us an email at - {' '}
-                    <a href="mailto:rajat@exxs.com" className="text-blue-300 hover:underline">rajat@exxs.com</a>
+                    <a href="mailto:rajat@exxs.com" className="text-blue-300 hover:underline">rajat@eoxs.com</a>
                   </p>
                 </div>
               </div>

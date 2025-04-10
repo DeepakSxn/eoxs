@@ -271,16 +271,22 @@ export default function VideoPlayerPage() {
 // Add this to the useEffect that handles video changes
 useEffect(() => {
   if (currentVideo && videoRef.current && videoChangeRef.current) {
-    // Clear session tracking for the previous video if there was one
-    if (playlist && currentVideoIndex > 0) {
-      const prevVideoId = playlist.videos[currentVideoIndex - 1].id;
-      clearVideoSessionTracking(prevVideoId);
-    }
-
     // Reset video state
     setProgress(0);
     setCurrentTime(0);
     setIsPlaying(false);
+    
+    // Reset mute state
+    setIsMuted(false);
+    if (videoRef.current) {
+      videoRef.current.muted = false;
+    }
+    
+    // Reset playback rate
+    setPlaybackRate(1);
+    if (videoRef.current) {
+      videoRef.current.playbackRate = 1;
+    }
 
     // Auto-play the video after a short delay
     const playTimer = setTimeout(() => {
@@ -300,9 +306,11 @@ useEffect(() => {
       }
     }, 300);
 
+    // Clear the timeout on cleanup
     return () => clearTimeout(playTimer);
   }
 }, [currentVideo]);
+
 
 
 
@@ -1285,19 +1293,7 @@ useEffect(() => {
             <Logo width={120} height={40} />
           </Link>
           <div className="flex items-center gap-4">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => setFeedbackOpen(true)}>
-                    <MessageSquare className="h-5 w-5" />
-                    <span className="sr-only">Feedback</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Provide Feedback</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+           
 
             <ThemeToggle />
 
