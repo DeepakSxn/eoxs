@@ -69,18 +69,20 @@ export default function AdminLogin() {
   }
 
   return (
-    <div className="auth-background">
+    <div className="auth-background">                                                         
       <div className="flex flex-col min-h-screen relative z-10">
-        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container flex h-16 items-center px-4 sm:px-6 lg:px-8">
-            <Link href="/" className="mr-4">
-              <Logo width={120} height={40} />
-            </Link>
-            <div className="ml-auto">
-              <ThemeToggle />
-            </div>
+      {/* Navigation Header */}
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-14 max-w-screen-2xl items-center justify-between">
+          <Link href="/" className="flex items-center">
+            <Logo />
+          </Link>
+          <div className="flex items-center space-x-4">
+            <ThemeToggle />
+           
           </div>
-        </header>
+        </div>
+      </header>
 
         <main className="flex-1 flex items-center justify-center p-4 md:p-8">
           <Card className="w-full max-w-md">
@@ -137,16 +139,7 @@ export default function AdminLogin() {
           </Card>
         </main>
 
-        <footer className="w-full border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container flex flex-col items-center justify-between gap-4 py-6 md:h-16 md:flex-row md:py-0">
-            <div className="flex flex-col items-center gap-4 px-8 md:flex-row md:gap-2 md:px-0">
-              <p className="text-sm text-muted-foreground">Where Steel Meets Technology</p>
-            </div>
-            <p className="text-center text-sm text-muted-foreground md:text-left">
-              © {new Date().getFullYear()} EOXS. All rights reserved.
-            </p>
-          </div>
-        </footer>
+      
       </div>
     </div>
   )
