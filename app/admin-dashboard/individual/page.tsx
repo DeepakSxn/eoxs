@@ -27,6 +27,7 @@ import {
 import { format } from "date-fns"
 import { Bar, Doughnut } from "react-chartjs-2"
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from "chart.js"
+import { toast } from "@/components/ui/use-toast"
 
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
@@ -47,6 +48,8 @@ interface VideoWatchEvent {
   category?: string
   tags?: string[]
   progressPercentage?: number
+  progress?: number
+  lastWatchedAt?: { seconds: number; nanoseconds: number }
 }
 
 interface UserAnalytics {
@@ -103,270 +106,7 @@ export default function IndividualAnalyticsPage() {
   const [companySortBy, setCompanySortBy] = useState("userCount")
   const [companySortDirection, setCompanySortDirection] = useState<"asc" | "desc">("desc")
 
-  useEffect(() => {
-    fetchAnalyticsData()
-  }, [dateRange])
-
-  const fetchAnalyticsData = async () => {
-    setLoading(true)
-    try {
-      // Fetch all users from Firestore
-      const usersCollection = collection(db, "users")
-      const usersSnapshot = await getDocs(usersCollection)
-
-      const usersData = usersSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        userId: doc.data().userId,
-        name: doc.data().name || "Unknown User",
-        email: doc.data().email || "Unknown Email",
-        companyName: doc.data().companyName || "Unknown Company",
-        profession: doc.data().profession || doc.data().primaryProfession || "Unknown Profession",
-        secondaryProfession: doc.data().secondaryProfession || null,
-      }))
-
-      // Create a map of userId to user data for quick lookup
-      const userMap = new Map()
-      usersData.forEach((user) => {
-        userMap.set(user.userId, user)
-      })
-
-      // Fetch watch events
-      let eventsQuery = query(collection(db, "videoWatchEvents"), orderBy("watchedAt", "desc"))
-
-      // Apply date filter if needed
-      if (dateRange !== "all") {
-        const now = new Date()
-        const startDate = new Date()
-
-        if (dateRange === "today") {
-          startDate.setHours(0, 0, 0, 0)
-        } else if (dateRange === "week") {
-          startDate.setDate(now.getDate() - 7)
-        } else if (dateRange === "month") {
-          startDate.setMonth(now.getMonth() - 1)
-        }
-
-        eventsQuery = query(
-          collection(db, "videoWatchEvents"),
-          where("watchedAt", ">=", startDate),
-          orderBy("watchedAt", "desc"),
-        )
-      }
-
-      const eventsSnapshot = await getDocs(eventsQuery)
-      const events = eventsSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as VideoWatchEvent[]
-
-      // Process user analytics
-      const userAnalyticsMap = new Map<string, UserAnalytics>()
-      const companyAnalyticsMap = new Map<string, CompanyAnalytics>()
-
-      // Create a map to track video watch data by user and video
-      const videoWatchMap = new Map<
-        string,
-        Map<
-          string,
-          {
-            watchTimeSeconds: number
-            progressPercentage: number
-            completed: boolean
-            lastWatchedTimestamp: number
-          }
-        >
-      >()
-
-      // First pass: collect all watch events by user and video
-      events.forEach((event) => {
-        const userId = event.userId
-        const videoId = event.videoId
-
-        if (!videoWatchMap.has(userId)) {
-          videoWatchMap.set(userId, new Map())
-        }
-
-        const userVideos = videoWatchMap.get(userId)!
-
-        if (!userVideos.has(videoId)) {
-          userVideos.set(videoId, {
-            watchTimeSeconds: 0,
-            progressPercentage: 0,
-            completed: false,
-            lastWatchedTimestamp: event.watchedAt.seconds,
-          })
-        }
-
-        const videoData = userVideos.get(videoId)!
-
-        // Update watch time
-        if (event.watchDuration) {
-          videoData.watchTimeSeconds += event.watchDuration
-        }
-
-        // Update completion status
-        if (event.completed) {
-          videoData.completed = true
-        }
-
-        // Update progress percentage if higher
-        if (event.progressPercentage && event.progressPercentage > videoData.progressPercentage) {
-          videoData.progressPercentage = event.progressPercentage
-        }
-
-        // Update last watched timestamp if more recent
-        if (event.watchedAt.seconds > videoData.lastWatchedTimestamp) {
-          videoData.lastWatchedTimestamp = event.watchedAt.seconds
-        }
-      })
-
-      // Second pass: process events to build user analytics
-      events.forEach((event) => {
-        const userId = event.userId
-        const userData = userMap.get(userId)
-
-        if (!userData) return // Skip if user data not found
-
-        // Process user analytics
-        if (!userAnalyticsMap.has(userId)) {
-          userAnalyticsMap.set(userId, {
-            id: userId,
-            name: userData.name,
-            email: userData.email || event.userEmail || "Unknown Email",
-            companyName: userData.companyName,
-            timeWatched: "0s",
-            timeWatchedSeconds: 0,
-            videoCount: 0,
-            completionRate: 0,
-            lastActive: formatDate(event.watchedAt.seconds),
-            lastActiveTimestamp: event.watchedAt.seconds,
-            viewedVideos: [],
-          })
-
-          // Add all videos watched by this user
-          const userVideos = videoWatchMap.get(userId)
-          if (userVideos) {
-            const userAnalytics = userAnalyticsMap.get(userId)!
-            let totalWatchTimeSeconds = 0
-
-            userVideos.forEach((videoData, videoId) => {
-              // Find the event with this videoId to get title and other metadata
-              const videoEvent = events.find((e) => e.videoId === videoId && e.userId === userId)
-              if (!videoEvent) return
-
-              totalWatchTimeSeconds += videoData.watchTimeSeconds
-
-              userAnalytics.viewedVideos.push({
-                id: videoId,
-                title: videoEvent.videoTitle || "Unknown Video",
-                watchTime: formatTime(videoData.watchTimeSeconds),
-                watchTimeSeconds: videoData.watchTimeSeconds,
-                completion: videoData.completed ? "100%" : `${Math.round(videoData.progressPercentage)}%`,
-                completionRate: videoData.completed ? 1 : videoData.progressPercentage / 100,
-                lastWatched: formatDate(videoData.lastWatchedTimestamp),
-                lastWatchedTimestamp: videoData.lastWatchedTimestamp,
-                category: videoEvent.category || "Uncategorized",
-              })
-            })
-
-            userAnalytics.videoCount = userAnalytics.viewedVideos.length
-            userAnalytics.timeWatchedSeconds = totalWatchTimeSeconds
-            userAnalytics.timeWatched = formatTime(totalWatchTimeSeconds)
-
-            // Calculate overall completion rate
-            const completedVideos = userAnalytics.viewedVideos.filter((v) => v.completionRate >= 0.9).length
-            userAnalytics.completionRate =
-              userAnalytics.viewedVideos.length > 0 ? completedVideos / userAnalytics.viewedVideos.length : 0
-          }
-        }
-
-        // Update last active time if this event is more recent
-        const userAnalytics = userAnalyticsMap.get(userId)!
-        if (event.watchedAt.seconds > userAnalytics.lastActiveTimestamp) {
-          userAnalytics.lastActive = formatDate(event.watchedAt.seconds)
-          userAnalytics.lastActiveTimestamp = event.watchedAt.seconds
-        }
-
-        // Process company analytics
-       // Process company analytics
-const companyName = userData.companyName || "Unknown Company"
-const companyKey = companyName.toLowerCase() // Use lowercase as the key
-
-if (!companyAnalyticsMap.has(companyKey)) {
-  companyAnalyticsMap.set(companyKey, {
-    name: companyName, // Keep the original name for display
-    userCount: 0,
-    totalWatchTime: "0s",
-    totalWatchTimeSeconds: 0,
-    averageCompletionRate: 0,
-    videoCount: 0,
-    lastActive: formatDate(event.watchedAt.seconds),
-    lastActiveTimestamp: event.watchedAt.seconds,
-    users: [],
-  })
-}
-
-// When accessing company data
-const companyAnalytics = companyAnalyticsMap.get(companyKey)!
-
-      })
-
-      // Convert user analytics map to array
-      const userAnalyticsArray = Array.from(userAnalyticsMap.values())
-
-      // Process company analytics
-      userAnalyticsArray.forEach((user) => {
-        const companyName = user.companyName || "Unknown Company"
-        const companyKey = companyName.toLowerCase()
-
-        
-           if (companyAnalyticsMap.has(companyKey)) {
-             const companyAnalytics = companyAnalyticsMap.get(companyKey)!
-
-          // Add user if not already in the company's users array
-          if (!companyAnalytics.users.some((u) => u.id === user.id)) {
-            companyAnalytics.users.push(user)
-            companyAnalytics.userCount = companyAnalytics.users.length
-          }
-
-          // Update company's total watch time
-          companyAnalytics.totalWatchTimeSeconds += user.timeWatchedSeconds
-          companyAnalytics.totalWatchTime = formatTime(companyAnalytics.totalWatchTimeSeconds)
-
-          // Update company's video count
-          companyAnalytics.videoCount += user.videoCount
-
-          // Update company's last active time if this user's last active time is more recent
-          if (user.lastActiveTimestamp > companyAnalytics.lastActiveTimestamp) {
-            companyAnalytics.lastActive = user.lastActive
-            companyAnalytics.lastActiveTimestamp = user.lastActiveTimestamp
-          }
-        }
-      })
-      
-      // Calculate average completion rate for each company
-      companyAnalyticsMap.forEach((company) => {
-        
-        const totalCompletionRate = company.users.reduce((sum, user) => sum + user.completionRate, 0)
-        company.averageCompletionRate = company.users.length > 0 ? totalCompletionRate / company.users.length : 0
-      })
-
-      // Convert company analytics map to array
-      const companyAnalyticsArray = Array.from(companyAnalyticsMap.values())
-
-      // Sort users and companies
-      const sortedUsers = sortUsers(userAnalyticsArray, sortBy, sortDirection)
-      const sortedCompanies = sortCompanies(companyAnalyticsArray, companySortBy, companySortDirection)
-
-      setUsers(sortedUsers)
-      setCompanies(sortedCompanies)
-      setLoading(false)
-    } catch (error) {
-      console.error("Error fetching analytics data:", error)
-      setLoading(false)
-    }
-  }
-
+  // Define sortUsers and sortCompanies functions before they're used
   const sortUsers = (users: UserAnalytics[], sortField: string, direction: "asc" | "desc") => {
     return [...users].sort((a, b) => {
       let comparison = 0
@@ -430,6 +170,281 @@ const companyAnalytics = companyAnalyticsMap.get(companyKey)!
 
       return direction === "asc" ? comparison : -comparison
     })
+  }
+
+  useEffect(() => {
+    fetchAnalyticsData()
+  }, [dateRange])
+
+  // Replace the fetchAnalyticsData function with this improved version
+  const fetchAnalyticsData = async () => {
+    setLoading(true)
+    try {
+      // Fetch all users from Firestore
+      const usersCollection = collection(db, "users")
+      const usersSnapshot = await getDocs(usersCollection)
+
+      const usersData = usersSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        userId: doc.data().userId,
+        name: doc.data().name || "Unknown User",
+        email: doc.data().email || "Unknown Email",
+        companyName: doc.data().companyName || "Unknown Company",
+        profession: doc.data().profession || doc.data().primaryProfession || "Unknown Profession",
+        secondaryProfession: doc.data().secondaryProfession || null,
+      }))
+
+      // Create a map of userId to user data for quick lookup
+      const userMap = new Map()
+      usersData.forEach((user) => {
+        userMap.set(user.userId, user)
+      })
+
+      // Fetch watch events with appropriate date filtering
+      let eventsQuery = query(
+        collection(db, "videoWatchEvents"),
+        orderBy("lastWatchedAt", "desc"), // Use lastWatchedAt instead of watchedAt for consistency
+      )
+
+      // Apply date filter if needed
+      if (dateRange !== "all") {
+        const now = new Date()
+        const startDate = new Date()
+
+        if (dateRange === "today") {
+          startDate.setHours(0, 0, 0, 0)
+        } else if (dateRange === "week") {
+          startDate.setDate(now.getDate() - 7)
+        } else if (dateRange === "month") {
+          startDate.setMonth(now.getMonth() - 1)
+        }
+
+        eventsQuery = query(
+          collection(db, "videoWatchEvents"),
+          where("lastWatchedAt", ">=", startDate),
+          orderBy("lastWatchedAt", "desc"),
+        )
+      }
+
+      const eventsSnapshot = await getDocs(eventsQuery)
+
+      // Early return if no events found
+      if (eventsSnapshot.empty) {
+        setUsers([])
+        setCompanies([])
+        setLoading(false)
+        return
+      }
+
+      const events = eventsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as VideoWatchEvent[]
+
+      // Process user analytics
+      const userAnalyticsMap = new Map<string, UserAnalytics>()
+      const companyAnalyticsMap = new Map<string, CompanyAnalytics>()
+
+      // Create a map to track unique videos watched by each user
+      const userVideoMap = new Map<string, Set<string>>()
+
+      // First pass: collect all unique videos watched by each user
+      events.forEach((event) => {
+        const userId = event.userId
+        const videoId = event.videoId
+
+        if (!userVideoMap.has(userId)) {
+          userVideoMap.set(userId, new Set())
+        }
+
+        userVideoMap.get(userId)?.add(videoId)
+      })
+
+      // Second pass: process events to build user analytics
+      for (const userId of userVideoMap.keys()) {
+        const userData = userMap.get(userId)
+        if (!userData) continue // Skip if user data not found
+
+        // Get user's events
+        const userEvents = events.filter((event) => event.userId === userId)
+        if (userEvents.length === 0) continue
+
+        // Find the most recent event for last active time
+        const mostRecentEvent = userEvents.reduce((latest, current) => {
+          const latestTime = latest.lastWatchedAt?.seconds || latest.watchedAt?.seconds || 0
+          const currentTime = current.lastWatchedAt?.seconds || current.watchedAt?.seconds || 0
+          return currentTime > latestTime ? current : latest
+        }, userEvents[0])
+
+        const lastActiveTimestamp = mostRecentEvent.lastWatchedAt?.seconds || mostRecentEvent.watchedAt?.seconds || 0
+
+        // Initialize user analytics
+        const userAnalytics: UserAnalytics = {
+          id: userId,
+          name: userData.name,
+          email: userData.email || "Unknown Email",
+          companyName: userData.companyName,
+          timeWatched: "0s",
+          timeWatchedSeconds: 0,
+          videoCount: 0,
+          completionRate: 0,
+          lastActive: formatDate(lastActiveTimestamp),
+          lastActiveTimestamp: lastActiveTimestamp,
+          viewedVideos: [],
+        }
+
+        // Process each unique video watched by this user
+        const uniqueVideos = userVideoMap.get(userId) || new Set()
+        let totalWatchTimeSeconds = 0
+        let completedVideosCount = 0
+
+        for (const videoId of uniqueVideos) {
+          // Get all events for this video by this user
+          const videoEvents = userEvents.filter((event) => event.videoId === videoId)
+          if (videoEvents.length === 0) continue
+
+          // Find the most complete/recent event for this video
+          const mostCompleteEvent = videoEvents.reduce((best, current) => {
+            // Prefer completed events
+            if (current.completed && !best.completed) return current
+            if (best.completed && !current.completed) return best
+
+            // If both completed or both not completed, prefer higher progress
+            const bestProgress = best.progressPercentage || best.progress || 0
+            const currentProgress = current.progressPercentage || current.progress || 0
+            if (currentProgress > bestProgress) return current
+            if (bestProgress > currentProgress) return best
+
+            // If progress is the same, prefer more recent
+            const bestTime = best.lastWatchedAt?.seconds || best.watchedAt?.seconds || 0
+            const currentTime = current.lastWatchedAt?.seconds || current.watchedAt?.seconds || 0
+            return currentTime > bestTime ? current : best
+          }, videoEvents[0])
+
+          // Calculate total watch time for this video
+          const videoWatchTime = videoEvents.reduce((total, event) => {
+            return total + (event.watchDuration || 0)
+          }, 0)
+
+          totalWatchTimeSeconds += videoWatchTime
+
+          // Determine completion status
+          const isCompleted =
+            mostCompleteEvent.completed ||
+            (mostCompleteEvent.progressPercentage || mostCompleteEvent.progress || 0) >= 90
+
+          if (isCompleted) {
+            completedVideosCount++
+          }
+
+          // Get the most recent watch time
+          const lastWatchedTimestamp =
+            mostCompleteEvent.lastWatchedAt?.seconds || mostCompleteEvent.watchedAt?.seconds || 0
+
+          // Add to viewed videos
+          userAnalytics.viewedVideos.push({
+            id: videoId,
+            title: mostCompleteEvent.videoTitle || "Unknown Video",
+            watchTime: formatTime(videoWatchTime),
+            watchTimeSeconds: videoWatchTime,
+            completion: isCompleted
+              ? "100%"
+              : `${Math.round(mostCompleteEvent.progressPercentage || mostCompleteEvent.progress || 0)}%`,
+            completionRate: isCompleted
+              ? 1
+              : (mostCompleteEvent.progressPercentage || mostCompleteEvent.progress || 0) / 100,
+            lastWatched: formatDate(lastWatchedTimestamp),
+            lastWatchedTimestamp: lastWatchedTimestamp,
+            category: mostCompleteEvent.category || "Uncategorized",
+          })
+        }
+
+        // Update user analytics with calculated values
+        userAnalytics.videoCount = userAnalytics.viewedVideos.length
+        userAnalytics.timeWatchedSeconds = totalWatchTimeSeconds
+        userAnalytics.timeWatched = formatTime(totalWatchTimeSeconds)
+        userAnalytics.completionRate =
+          userAnalytics.viewedVideos.length > 0 ? completedVideosCount / userAnalytics.viewedVideos.length : 0
+
+        // Add to user analytics map
+        userAnalyticsMap.set(userId, userAnalytics)
+
+        // Process company analytics
+    // When creating the company key in fetchAnalyticsData
+          const companyName = userData.companyName || "Unknown Company"
+          const normalizedCompanyName = companyName.trim() // Remove any extra spaces
+          const companyKey = normalizedCompanyName.toLowerCase() // Convert to lowercase for comparison
+
+          // When initializing a new company entry
+          if (!companyAnalyticsMap.has(companyKey)) {
+            companyAnalyticsMap.set(companyKey, {
+              name: normalizedCompanyName.charAt(0).toUpperCase() + normalizedCompanyName.slice(1), // Capitalize first letter
+              userCount: 0,
+              totalWatchTime: "0s",
+              totalWatchTimeSeconds: 0,
+              averageCompletionRate: 0,
+              videoCount: 0,
+              lastActive: userAnalytics.lastActive,
+              lastActiveTimestamp: userAnalytics.lastActiveTimestamp,
+              users: [],
+            })
+          }
+
+
+        const companyAnalytics = companyAnalyticsMap.get(companyKey)!
+
+        // Add user to company if not already added
+        if (!companyAnalytics.users.some((u) => u.id === userId)) {
+          companyAnalytics.users.push(userAnalytics)
+          companyAnalytics.userCount = companyAnalytics.users.length
+        }
+
+        // Update company stats
+        companyAnalytics.totalWatchTimeSeconds += userAnalytics.timeWatchedSeconds
+        companyAnalytics.totalWatchTime = formatTime(companyAnalytics.totalWatchTimeSeconds)
+
+        // Count unique videos across all company users
+        const companyVideos = new Set<string>()
+        companyAnalytics.users.forEach((user) => {
+          user.viewedVideos.forEach((video) => {
+            companyVideos.add(video.id)
+          })
+        })
+        companyAnalytics.videoCount = companyVideos.size
+
+        // Update company's last active time if this user's last active time is more recent
+        if (userAnalytics.lastActiveTimestamp > companyAnalytics.lastActiveTimestamp) {
+          companyAnalytics.lastActive = userAnalytics.lastActive
+          companyAnalytics.lastActiveTimestamp = userAnalytics.lastActiveTimestamp
+        }
+      }
+
+      // Calculate average completion rate for each company
+      companyAnalyticsMap.forEach((company) => {
+        const totalCompletionRate = company.users.reduce((sum, user) => sum + user.completionRate, 0)
+        company.averageCompletionRate = company.users.length > 0 ? totalCompletionRate / company.users.length : 0
+      })
+
+      // Convert maps to arrays
+      const userAnalyticsArray = Array.from(userAnalyticsMap.values())
+      const companyAnalyticsArray = Array.from(companyAnalyticsMap.values())
+
+      // Sort users and companies
+      const sortedUsers = sortUsers(userAnalyticsArray, sortBy, sortDirection)
+      const sortedCompanies = sortCompanies(companyAnalyticsArray, companySortBy, companySortDirection)
+
+      setUsers(sortedUsers)
+      setCompanies(sortedCompanies)
+    } catch (error) {
+      console.error("Error fetching analytics data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load analytics data. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSort = (field: string) => {
@@ -1228,4 +1243,3 @@ const companyAnalytics = companyAnalyticsMap.get(companyKey)!
     </div>
   )
 }
-
