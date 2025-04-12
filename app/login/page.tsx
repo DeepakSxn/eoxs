@@ -70,12 +70,7 @@ export default function Login() {
         <div className="container flex h-20 items-center px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
           <div className="flex items-center">
             <Link href="/" className="flex items-center">
-              <div className="relative h-10 w-10 mr-2">
-                <svg viewBox="0 0 100 100" className="h-10 w-10 fill-green-600">
-                  <polygon points="50,10 90,30 90,70 50,90 10,70 10,30" />
-                  <polygon points="50,20 80,35 80,65 50,80 20,65 20,35" fill="white" />
-                </svg>
-              </div>
+              
               <img src="light.webp" height={180} width={80}/>
 
               
@@ -94,8 +89,8 @@ export default function Login() {
 
       <main className="flex-1 flex flex-col items-center justify-center py-12 px-4">
         <div className="w-full max-w-md text-center mb-8">
-          <h1 className="text-5xl font-bold mb-4">
-            Demo<span className="text-green-600">X</span>plore
+        <h1 className="text-5xl font-bold mb-4 flex flex-col items-center justify-center">
+          <img src="Component 1m.png" alt="Demox" height={360} width={200}/>
           </h1>
           <p className="text-xl">Sign in to your account</p>
         </div>
