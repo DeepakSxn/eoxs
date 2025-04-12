@@ -11,8 +11,11 @@ export default function Home() {
 
   // Set loaded state after component mounts
   useEffect(() => {
-    setIsLoaded(true)
-  }, [])
+    setTimeout(() => {
+      setIsLoaded(true);
+    }, 0); // Set timeout to 0 for immediate effect
+  }, []);
+  
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -58,9 +61,11 @@ export default function Home() {
               </h1>
               <p className="text-xl md:text-2xl max-w-3xl">Explore our software features at your own pace.</p>
               <div className="pt-4">
-                <Button size="lg" className="bg-green-600 hover:bg-green-500 text-white px-12 py-6 text-lg rounded-md">
+              <Link href={'login'}>
+              <Button size="lg" className="bg-green-600 hover:bg-green-500 text-white px-12 py-6 text-lg rounded-md">
                   Get Started
                 </Button>
+              </Link>
               </div>
             </div>
           </div>
