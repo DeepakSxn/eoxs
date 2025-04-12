@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { Search, LogOut, Clock, Play, CheckCircle } from "lucide-react"
+import { Search, LogOut, Clock, Play, CheckCircle, Link } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/use-toast"
@@ -352,10 +352,12 @@ export default function Dashboard() {
       <header className="border-b sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center px-4">
           <div className="mr-4">
-            <Logo width={100} height={32} />
+           <Link href="/">
+           <img src="light.webp" alt="logo" />
+           </Link>
           </div>
           <div className="ml-auto flex items-center gap-4">
-            <ThemeToggle />
+      
             <Button variant="ghost" size="icon" onClick={handleLogout}>
               <LogOut className="h-4 w-4" />
             </Button>
