@@ -135,12 +135,12 @@ export default function Home() {
       <footer className="border-t border-gray-100 py-6">
         <div className="container px-4 md:px-6 max-w-7xl mx-auto">
           <div className="flex flex-wrap gap-4">
-            <Link href="/privacy" className="text-sm text-gray-700 hover:text-gray-900">
+            
               Privacy Policy
-            </Link>
-            <Link href="/certified" className="text-sm text-gray-700 hover:text-gray-900">
+            
+           
               Certified Engineer
-            </Link>
+           
           </div>
         </div>
       </footer>
