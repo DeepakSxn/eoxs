@@ -75,10 +75,12 @@ export default function AdminDashboardLayout({
             >
               {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </Button>
-            <Logo></Logo>
+            <Link href="/admin-dashboard">
+           <img src="light.webp" alt="logo" />
+           </Link>
           </div>
           <div className="flex items-center gap-4">
-            <ThemeToggle />
+          
             <Button variant="outline" size="sm" className="gap-2" onClick={handleLogout}>
               <LogOut className="h-4 w-4" />
               Logout
