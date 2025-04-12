@@ -67,22 +67,37 @@ export default function AdminLogin() {
       console.error(err)
     }
   }
-
   return (
-    <div className="auth-background">                                                         
-      <div className="flex flex-col min-h-screen relative z-10">
-      {/* Navigation Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 max-w-screen-2xl items-center justify-between">
-          <Link href="/" className="flex items-center">
-            <Logo />
-          </Link>
-          <div className="flex items-center space-x-4">
-            <ThemeToggle />
-           
+    <div className="flex flex-col min-h-screen bg-white">
+      {/* Header */}
+      <header className="bg-transparent">
+        <div className="container flex h-20 items-center px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center">
+              <div className="relative h-10 w-10 mr-2">
+                <svg viewBox="0 0 100 100" className="h-10 w-10 fill-green-600">
+                  <polygon points="50,10 90,30 90,70 50,90 10,70 10,30" />
+                  <polygon points="50,20 80,35 80,65 50,80 20,65 20,35" fill="white" />
+                </svg>
+              </div>
+              <img src="light.webp" height={180} width={80} />
+            </Link>
           </div>
+          <nav className="ml-auto flex gap-8 items-center">
+            <Link href="https://eoxs.com/" className="text-base font-medium">
+              Home
+            </Link>
+            <Link href="https://eoxs.com/about" className="text-base font-medium">
+              About
+            </Link>
+            <Link href="https://eoxs.com/contact" className="text-base font-medium">
+              Contact
+            </Link>
+          </nav>
+          
         </div>
       </header>
+
 
         <main className="flex-1 flex items-center justify-center p-4 md:p-8">
           <Card className="w-full max-w-md">
@@ -141,7 +156,7 @@ export default function AdminLogin() {
 
       
       </div>
-    </div>
+   
   )
 }
 

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2 } from "lucide-react"
+import { Loader2, User } from "lucide-react"
 import { signInWithEmailAndPassword } from "firebase/auth"
 import { toast } from "@/components/ui/use-toast"
 import { auth } from "@/firebase"
@@ -82,14 +82,11 @@ export default function Login() {
             </Link>
           </div>
           <nav className="ml-auto flex gap-8 items-center">
-            <Link href="/" className="text-base font-medium">
-              Home
-            </Link>
-            <Link href="/features" className="text-base font-medium">
-              Features
-            </Link>
-            <Link href="/contact" className="text-base font-medium">
-              Contact
+          <Link href="/admin-login">
+              <Button variant="outline" size="sm" className="gap-2 ">
+                <User size={16} />
+                <span>Admin</span>
+              </Button>
             </Link>
           </nav>
         </div>

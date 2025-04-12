@@ -142,16 +142,17 @@ export default function SignUp() {
             </Link>
           </div>
           <nav className="ml-auto flex gap-8 items-center">
-            <Link href="/" className="text-base font-medium">
+            <Link href="https://eoxs.com/" className="text-base font-medium">
               Home
             </Link>
-            <Link href="/features" className="text-base font-medium">
-              Features
+            <Link href="https://eoxs.com/about" className="text-base font-medium">
+              About
             </Link>
-            <Link href="/contact" className="text-base font-medium">
+            <Link href="https://eoxs.com/contact" className="text-base font-medium">
               Contact
             </Link>
           </nav>
+        
         </div>
       </header>
 

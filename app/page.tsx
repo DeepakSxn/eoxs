@@ -75,7 +75,7 @@ export default function Home() {
           <div className="container px-4 md:px-6 max-w-7xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Feature 1 */}
-              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
+              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-40">
                 <div className="flex items-start gap-4">
                   <div className="bg-white p-2">
                     <div className="text-green-600 border-2 border-green-600 rounded p-2 w-12 h-12 flex items-center justify-center">
@@ -90,7 +90,7 @@ export default function Home() {
               </div>
 
               {/* Feature 2 */}
-              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
+              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-40">
                 <div className="flex items-start gap-4">
                   <div className="bg-white p-2">
                     <div className="text-green-600 bg-green-600 rounded-full p-2 w-12 h-12 flex items-center justify-center">
@@ -105,7 +105,7 @@ export default function Home() {
               </div>
 
               {/* Feature 3 */}
-              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
+              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-40">
                 <div className="flex items-start gap-4">
                   <div className="bg-white p-2">
                     <div className="text-green-600 p-2">
@@ -120,7 +120,7 @@ export default function Home() {
               </div>
 
               {/* Feature 4 */}
-              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
+              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-40">
                 <div className="flex items-start gap-4">
                   <div className="bg-white p-2">
                     <div className="text-green-600 border-2 border-green-600 rounded-full p-2 w-12 h-12 flex items-center justify-center">
