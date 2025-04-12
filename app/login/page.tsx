@@ -1,40 +1,18 @@
 "use client"
 
 import type React from "react"
+
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ThemeToggle } from "../theme-toggle"
-import { Eye, EyeOff, Loader2, User } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
-import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth"
-
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2 } from "lucide-react"
+import { signInWithEmailAndPassword } from "firebase/auth"
 import { toast } from "@/components/ui/use-toast"
-import { Logo } from "../components/logo"
-import { collection, addDoc, serverTimestamp, getDocs, query, where } from "firebase/firestore"
-import { db } from "../firebase"
 import { auth } from "@/firebase"
-
-// Add this new isPreviewEnvironment function near the top of the component
-const isPreviewEnvironment = () => {
-  // Check if we're in a preview environment
-  // This checks for common preview domains or environments
-  if (typeof window !== "undefined") {
-    const hostname = window.location.hostname
-    return (
-      hostname.includes("vercel.app") ||
-      hostname.includes("localhost") ||
-      hostname.includes("127.0.0.1") ||
-      hostname.includes("preview")
-    )
-  }
-  return false
-}
 
 export default function Login() {
   const router = useRouter()
@@ -42,7 +20,6 @@ export default function Login() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -78,7 +55,6 @@ export default function Login() {
     }
   }
 
-
   // Load remembered email on component mount
   useEffect(() => {
     const rememberedEmail = localStorage.getItem("rememberedEmail")
@@ -89,126 +65,132 @@ export default function Login() {
   }, [])
 
   return (
-    <div className="auth-background">
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 max-w-screen-2xl items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <Logo />
-          </Link>
-          <div className="flex items-center space-x-4">
-            <ThemeToggle />
-            <Link href="/admin-login">
-              <Button variant="outline" size="sm" className="gap-2">
-                <User size={16} />
-                <span>Admin</span>
-              </Button>
+    <div className="flex flex-col min-h-screen bg-white">
+      <header className=" bg-transparent">
+        <div className="container flex h-20 items-center px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center">
+              <div className="relative h-10 w-10 mr-2">
+                <svg viewBox="0 0 100 100" className="h-10 w-10 fill-green-600">
+                  <polygon points="50,10 90,30 90,70 50,90 10,70 10,30" />
+                  <polygon points="50,20 80,35 80,65 50,80 20,65 20,35" fill="white" />
+                </svg>
+              </div>
+              <img src="light.webp" height={180} width={80}/>
             </Link>
           </div>
+          <nav className="ml-auto flex gap-8 items-center">
+            <Link href="/" className="text-base font-medium">
+              Home
+            </Link>
+            <Link href="/features" className="text-base font-medium">
+              Features
+            </Link>
+            <Link href="/contact" className="text-base font-medium">
+              Contact
+            </Link>
+          </nav>
         </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md space-y-8">
-          <Card className="shadow-lg border-border/50">
-            <CardHeader className="text-center space-y-4 pb-6">
-              <div className="flex justify-center">
-                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="h-8 w-8 text-primary" />
-                </div>
-              </div>
-              <div>
-                <CardTitle className="text-3xl font-bold mb-2">Welcome Back</CardTitle>
-                <CardDescription className="text-muted-foreground">Sign in to continue to your account</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleEmailLogin} className="space-y-6">
-                {error && (
-                  <Alert variant="destructive" className="mb-4">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="email" className="block mb-2">
-                      Email Address
-                    </Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="Enter your email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      disabled={loading}
-                      className="w-full"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <Label htmlFor="password">Password</Label>
-                      <Link href="/forgot-password" className="text-sm text-primary hover:underline">
-                        Forgot Password?
-                      </Link>
-                    </div>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Enter your password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        disabled={loading}
-                        className="w-full pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="remember"
-                        checked={rememberMe}
-                        onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                      />
-                      <label htmlFor="remember" className="text-sm font-medium">
-                        Remember me
-                      </label>
-                    </div>
-                  </div>
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    "Sign In"
-                  )}
-                </Button>
+      <main className="flex-1 flex flex-col items-center justify-center py-12 px-4">
+        <div className="w-full max-w-md text-center mb-8">
+          <h1 className="text-5xl font-bold mb-4">
+            Demo<span className="text-green-600">X</span>plore
+          </h1>
+          <p className="text-xl">Sign in to your account</p>
+        </div>
 
-              </form>
-            </CardContent>
-            <CardFooter className="text-center">
-              <p className="text-sm text-muted-foreground w-full">
+        <div className="w-full max-w-md">
+          {error && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleEmailLogin} className="space-y-4">
+            <div>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
+                className="h-12 text-base rounded-md"
+              />
+            </div>
+
+            <div>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+                className="h-12 text-base rounded-md"
+              />
+            </div>
+
+            <div className="flex items-center justify-between py-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="remember"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                />
+                <label htmlFor="remember" className="text-sm text-gray-600">
+                  Remember me
+                </label>
+              </div>
+
+              <Link href="/forgot-password" className="text-sm text-green-600 hover:underline">
+                Forgot Password?
+              </Link>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full h-12 text-base bg-green-600 hover:bg-green-500 rounded-md"
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
+            </Button>
+
+            <div className="text-center mt-4">
+              <p className="text-sm text-gray-600">
                 Don&apos;t have an account?{" "}
-                <Link href="/signup" className="font-medium text-primary hover:underline">
+                <Link href="/signup" className="text-green-600 hover:underline">
                   Sign up
                 </Link>
               </p>
-            </CardFooter>
-          </Card>
+            </div>
+          </form>
         </div>
       </main>
+
+      <footer className="border-t border-gray-100 py-6">
+        <div className="container px-4 md:px-6 max-w-7xl mx-auto">
+          <div className="flex flex-wrap gap-4">
+            <Link href="/privacy" className="text-sm text-gray-700 hover:text-gray-900">
+              Privacy Policy
+            </Link>
+            <Link href="/certified" className="text-sm text-gray-700 hover:text-gray-900">
+              Certified Engineer
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
-

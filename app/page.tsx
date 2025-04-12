@@ -1,123 +1,138 @@
 "use client"
 
-import { useState } from "react"
 import Link from "next/link"
-import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "./theme-toggle"
+import { Calendar, Clock, Brain, BrushIcon as Broom } from "lucide-react"
 import { Logo } from "./components/logo"
-import { Facebook, Instagram, Linkedin, Mail, MapPin, Phone, Twitter } from "lucide-react"
 
 export default function Home() {
   return (
-    <div className="relative flex flex-col min-h-screen">
-      {/* Background Image */}
-      <div className="fixed inset-0 z-0">
-        <Image
-          src="/banner-1.jpg"
-          alt="Warehouse Background"
-          fill
-          priority
-          quality={100}
-          sizes="100vw"
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-black/40" />
-      </div>
-
-      {/* Content wrapper with higher z-index */}
-      <div className="relative z-10 flex flex-col min-h-screen">
-        <header className="bg-transparent">
-          <div className="container flex h-14 items-center px-4 sm:px-6 lg:px-8">
-            <div className="mr-4 pt-2">
-              <img src="/dark.webp" height={100} width={100}   />
-            </div>
-            <nav className="ml-auto flex gap-4 sm:gap-6 items-center">
-              <Link href="https://eoxs.com/" className="text-sm font-medium hover:underline text-white">Home</Link>
-              <Link href="https://eoxs.com/about/" className="text-sm font-medium hover:underline text-white">About</Link>
-              <Link href="https://eoxs.com/contact/" className="text-sm font-medium hover:underline text-white">Contact</Link>
-              <div className="hidden">
-                
+    <div className="flex flex-col min-h-screen bg-white">
+      <header className="bg-transparent">
+        <div className="container flex h-20 items-center px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center">
+              <div className="relative h-10 w-10 mr-2">
+                <svg viewBox="0 0 100 100" className="h-10 w-10 fill-green-600">
+                  <polygon points="50,10 90,30 90,70 50,90 10,70 10,30" />
+                  <polygon points="50,20 80,35 80,65 50,80 20,65 20,35" fill="white" />
+                </svg>
               </div>
-            </nav>
+              <img src="light.webp" height={180} width={80}/>
+            </Link>
           </div>
-        </header>
+          <nav className="ml-auto flex gap-8 items-center">
+            <Link href="https://eoxs.com/" className="text-base font-medium">
+              Home
+            </Link>
+            <Link href="https://eoxs.com/about" className="text-base font-medium">
+              About
+            </Link>
+            <Link href="https://eoxs.com/contact" className="text-base font-medium">
+              Contact
+            </Link>
+          </nav>
+        </div>
+      </header>
 
-        <main className="flex-1">
-          <section className="w-full py-12 md:py-24 lg:py-32">
-            <div className="container px-4 md:px-6">
-              <div className="flex flex-col items-center pt-14 justify-center space-y-4 text-center">
-                <div className="space-y-2">
-                  <h6 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl text-white drop-shadow-md">
-                  VIEWLOX
-                  </h6>
-                  <p className="mx-auto max-w-[700px] text-white md:text-xl">
-
-                     Where steel engineering meets powerful demonstration
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-4 justify-center">
-                  <Link href="/login">
-                  <Button size="lg" className="bg-green-700 hover:bg-green-600 transition-all">
+      <main className="flex-1">
+        <section className="w-full py-16 md:py-24">
+          <div className="container px-4 md:px-6 max-w-7xl mx-auto">
+            <div className="flex flex-col items-center justify-center space-y-8 text-center">
+              <h1 className="text-5xl md:text-6xl font-bold tracking-tighter">
+                Demo<span className="text-green-600">X</span>plore
+              </h1>
+              <p className="text-xl md:text-2xl max-w-3xl">Explore our software features at your own pace.</p>
+              <div className="pt-4">
+               <Link href={'/login'}>
+               <Button size="lg" className="bg-green-600 hover:bg-green-500 text-white px-12 py-6 text-lg rounded-md">
                   Get Started
-                  </Button>
-
-                  </Link>
-                </div>
+                </Button>
+                </Link>
               </div>
             </div>
-          </section>
-        </main>
+          </div>
+        </section>
 
-        <footer className="bg-transparent py-8">
-          <div className="container mx-auto px-4 max-w-6xl">
-            <div className="flex flex-col md:flex-row justify-between gap-8">
-              {/* Certified Engineers Section - Left Side */}
-              <div className="md:w-1/3">
-                <div className="mb-4">
-                  <h1 className="text-2xl font-bold text-white">Certified Engineers</h1>
-                  <p className="text-white/80 font-medium mt-2">DMCAPROTECTED</p>
-                </div>
-                
-                <div className="text-xs text-white/70 mb-6">
-                  © {new Date().getFullYear()} www.exos.com. All rights reserved.
-                </div>
-                
-                <div className="flex space-x-4">
-                  <a href="https://facebook.com/eoxs" target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white">
-                    <Facebook size={20} />
-                  </a>
-                  <a href="https://twitter.com/eox" target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white">
-                    <Twitter size={20} />
-                  </a>
-                  <a href="https://linkedin.com/company/eoxs" target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white">
-                    <Linkedin size={20} />
-                  </a>
-                  <a href="https://instagram.com/eoxs" target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white">
-                    <Instagram size={20} />
-                  </a>
+        <section className="w-full py-12">
+          <div className="container px-4 md:px-6 max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Feature 1 */}
+              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-40">
+                <div className="flex items-start gap-4">
+                  <div className="bg-white p-2">
+                    <div className="text-green-600 border-2 border-green-600 rounded p-2 w-12 h-12 flex items-center justify-center">
+                      <Calendar className="h-6 w-6" />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold mb-2">No Scheduling</h3>
+                    <p className="text-gray-700">Watch demos without booking a time</p>
+                  </div>
                 </div>
               </div>
 
-              {/* Statutory Legal Information - Right Side */}
-              <div className="md:w-2/3">
-                <h2 className="text-base font-semibold text-white mb-3">Statutory Legal Information</h2>
-                <div className="text-sm text-white/80 space-y-3">
-                  <p>
-                    EOXS is the Registered Name of Prato Inc., an IT company situated in Santa Monica, California, USA at the address - 202 Bicknell Ave, Santa Monica, CA 90405, United States.
-                  </p>
-                  <p>
-                    All the personal information that you submit on the website - (Name, Email, Phone and Project Details) will not be sold, shared or rented to others. Our sales team or the team of software developers only use this information to send updates about our company and projects or contact you if requested or find it necessary.
-                  
-                    You may opt out of receiving our communication by dropping us an email at - {' '}
-                    <a href="mailto:rajat@exxs.com" className="text-blue-300 hover:underline">rajat@eoxs.com</a>
-                  </p>
+              {/* Feature 2 */}
+              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-40">
+                <div className="flex items-start gap-4">
+                  <div className="bg-white p-2">
+                    <div className="text-green-600 bg-green-600 rounded-full p-2 w-12 h-12 flex items-center justify-center">
+                      <Brain className="h-6 w-6 text-white" />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold mb-2">AI Personalized</h3>
+                    <p className="text-gray-700">Content tailored to your interests</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Feature 3 */}
+              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-40">
+                <div className="flex items-start gap-4">
+                  <div className="bg-white p-2">
+                    <div className="text-green-600 p-2">
+                      <Broom className="h-10 w-10 text-green-600" />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold mb-2">No Clutter</h3>
+                    <p className="text-gray-700">Focused demos without distractions</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Feature 4 */}
+              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-40">
+                <div className="flex items-start gap-4">
+                  <div className="bg-white p-2">
+                    <div className="text-green-600 border-2 border-green-600 rounded-full p-2 w-12 h-12 flex items-center justify-center">
+                      <Clock className="h-6 w-6" />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold mb-2">24/7 Availability</h3>
+                    <p className="text-gray-700">Access demos anytime, day or night</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </footer>
-      </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-gray-100 py-6">
+        <div className="container px-4 md:px-6 max-w-7xl mx-auto">
+          <div className="flex flex-wrap gap-4">
+            <Link href="/privacy" className="text-sm text-gray-700 hover:text-gray-900">
+              Privacy Policy
+            </Link>
+            <Link href="/certified" className="text-sm text-gray-700 hover:text-gray-900">
+              Certified Engineer
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

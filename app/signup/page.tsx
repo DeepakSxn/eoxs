@@ -1,42 +1,18 @@
 "use client"
 
 import type React from "react"
+
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ThemeToggle } from "../theme-toggle"
-import { db, auth } from "../firebase"
-import { collection, addDoc, serverTimestamp, getDocs, query, where } from "firebase/firestore"
-import { Eye, EyeOff, Loader2, User, UserPlus } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Separator } from "@/components/ui/separator"
-import { createUserWithEmailAndPassword, signInWithPopup } from "firebase/auth"
-
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
-import { Logo } from "../components/logo"
-
-
-// Add this new isPreviewEnvironment function near the top of the component
-const isPreviewEnvironment = () => {
-  // Check if we're in a preview environment
-  // This checks for common preview domains or environments
-  if (typeof window !== "undefined") {
-    const hostname = window.location.hostname
-    return (
-      hostname.includes("vercel.app") ||
-      hostname.includes("localhost") ||
-      hostname.includes("127.0.0.1") ||
-      hostname.includes("preview")
-    )
-  }
-  return false
-}
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2 } from "lucide-react"
+import { db, auth } from "../../firebase"
+import { collection, addDoc, serverTimestamp, getDocs } from "firebase/firestore"
+import { createUserWithEmailAndPassword } from "firebase/auth"
 
 export default function SignUp() {
   const router = useRouter()
@@ -44,58 +20,37 @@ export default function SignUp() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [name, setName] = useState("")
-
   const [companyName, setCompanyName] = useState("")
-
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
-  const [categories, setCategories] = useState<string[]>([
-    "General",
-    "Sales",
-    "Accounting",
-    "Inventory",
-    "Manufacturing",
-    "CRM",
-    "HR",
-    "Procurement",
-    "Analytics",
-    "Other",
-  ])
+ 
+
   useEffect(() => {
     const fetchCategories = async () => {
       try {
         // Fetch all videos to extract unique categories
         const videosCollection = collection(db, "videos")
         const videoSnapshot = await getDocs(videosCollection)
-  
+
         // Extract unique categories
         const uniqueCategories = new Set<string>()
         videoSnapshot.docs.forEach((doc) => {
           const category = doc.data().category
-          if (category && category !== "General" && category !== "Other" && category!=="Miscellaneous") {
+          if (category && category !== "General" && category !== "Other" && category !== "Miscellaneous") {
             uniqueCategories.add(category)
           }
         })
-  
-        // Add default message if no valid categories exist
-        if (uniqueCategories.size === 0) {
-          setCategories(["none added"])
-        } else {
-          // Convert Set to Array and set state
-          setCategories(Array.from(uniqueCategories))
-        }
+
+        
       } catch (error) {
         console.error("Error fetching categories:", error)
       }
     }
-  
+
     fetchCategories()
   }, [])
-  
-  
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -126,7 +81,6 @@ export default function SignUp() {
       errors.push("Passwords do not match")
     }
 
- 
     if (!companyName) {
       errors.push("Company Name is required")
     }
@@ -149,9 +103,7 @@ export default function SignUp() {
         userId: userCredential.user.uid,
         email: userCredential.user.email,
         name: name,
-        
         companyName: companyName,
-     
         createdAt: serverTimestamp(),
         role: "user",
       })
@@ -174,187 +126,162 @@ export default function SignUp() {
     }
   }
 
-
   return (
-    <div className="auth-background">
-      {/* Navigation Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 max-w-screen-2xl items-center justify-between">
-          <Link href="/" className="flex items-center">
-            <Logo />
-          </Link>
-          <div className="flex items-center space-x-4">
-            <ThemeToggle />
-            <Link href="/admin-login">
-              <Button variant="outline" size="sm" className="gap-2">
-                <User size={16} />
-                <span>Admin</span>
-              </Button>
+    <div className="flex flex-col min-h-screen bg-white">
+      <header className=" bg-transparent ">
+        <div className="container flex h-20 items-center px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center">
+              <div className="relative h-10 w-10 mr-2">
+                <svg viewBox="0 0 100 100" className="h-10 w-10 fill-green-600">
+                  <polygon points="50,10 90,30 90,70 50,90 10,70 10,30" />
+                  <polygon points="50,20 80,35 80,65 50,80 20,65 20,35" fill="white" />
+                </svg>
+              </div>
+              <img src="light.webp" height={180} width={80}/>
             </Link>
           </div>
+          <nav className="ml-auto flex gap-8 items-center">
+            <Link href="/" className="text-base font-medium">
+              Home
+            </Link>
+            <Link href="/features" className="text-base font-medium">
+              Features
+            </Link>
+            <Link href="/contact" className="text-base font-medium">
+              Contact
+            </Link>
+          </nav>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-grow flex items-center justify-center p-4">
+      <main className="flex-1 flex flex-col items-center justify-center py-12 px-4">
+        <div className="w-full max-w-md text-center mb-8">
+          <h1 className="text-5xl font-bold mb-4">
+            Demo<span className="text-green-600">X</span>plore
+          </h1>
+          <p className="text-xl">Sign up to get started</p>
+        </div>
+
         <div className="w-full max-w-md">
-          <Card className="shadow-lg">
-            <CardHeader className="text-center space-y-4 pb-0">
-              <div className="flex justify-center">
-                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                  <UserPlus className="h-8 w-8 text-primary" />
-                </div>
-              </div>
-              <div>
-                <CardTitle className="text-3xl font-bold mb-2">Create Account</CardTitle>
-                <CardDescription className="text-muted-foreground">Enter your details to get started</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <form onSubmit={handleSignup} className="space-y-4">
-                {error && (
-                  <Alert variant="destructive" className="mb-4">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-                <div className="space-y-4">
-                  {/* Name Input */}
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input
-                      id="name"
-                      type="text"
-                      placeholder="Enter your full name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      required
-                      disabled={loading}
-                      className="h-10"
-                    />
-                  </div>
+          {error && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-                  {/* Email Input */}
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="name@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      disabled={loading}
-                      className="h-10"
-                    />
-                  </div>
+          <form onSubmit={handleSignup} className="space-y-4">
+            <div>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                disabled={loading}
+                className="h-12 text-base rounded-md"
+              />
+            </div>
 
-                  {/* Company Name Input */}
-                  <div className="space-y-2">
-                    <Label htmlFor="companyName">Company Name</Label>
-                    <Input
-                      id="companyName"
-                      type="text"
-                      placeholder="Enter your company name"
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      required
-                      disabled={loading}
-                      className="h-10"
-                    />
-                  </div>
+            <div>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
+                className="h-12 text-base rounded-md"
+              />
+            </div>
 
+            <div>
+              <Input
+                id="companyName"
+                type="text"
+                placeholder="Company Name"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                required
+                disabled={loading}
+                className="h-12 text-base rounded-md"
+              />
+            </div>
 
-                  {/* Password Input */}
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Enter password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        disabled={loading}
-                        className="h-10 pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                      </button>
-                    </div>
-                  </div>
+            <div>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+                className="h-12 text-base rounded-md"
+              />
+            </div>
 
-                  {/* Confirm Password Input */}
-                  <div className="space-y-2">
-                    <Label htmlFor="confirm-password">Confirm Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="confirm-password"
-                        type={showConfirmPassword ? "text" : "password"}
-                        placeholder="Confirm password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        required
-                        disabled={loading}
-                        className="h-10 pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                      </button>
-                    </div>
-                  </div>
+            <div>
+              <Input
+                id="confirm-password"
+                type="password"
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                disabled={loading}
+                className="h-12 text-base rounded-md"
+              />
+            </div>
 
-                  {/* Terms Acceptance */}
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="terms"
-                      checked={termsAccepted}
-                      onCheckedChange={() => setTermsAccepted(!termsAccepted)}
-                    />
-                    <Label htmlFor="terms" className="text-sm font-normal text-muted-foreground">
-                      I accept the Terms and Conditions
-                    </Label>
-                  </div>
-                </div>
+            <div className="flex items-center space-x-2 py-2">
+              <Checkbox id="terms" checked={termsAccepted} onCheckedChange={() => setTermsAccepted(!termsAccepted)} />
+              <label htmlFor="terms" className="text-sm text-gray-600">
+                I accept the Terms and Conditions
+              </label>
+            </div>
 
-                {/* Submit Button */}
-                <Button type="submit" className="w-full mt-4" disabled={loading}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating account...
-                    </>
-                  ) : (
-                    "Create Account"
-                  )}
-                </Button>
-              </form>
+            <Button
+              type="submit"
+              className="w-full h-12 text-base bg-green-600 hover:bg-green-500 rounded-md"
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating account...
+                </>
+              ) : (
+                "Sign Up"
+              )}
+            </Button>
 
-             
-              
-            </CardContent>
-
-            {/* Footer */}
-            <CardFooter className="justify-center text-center">
-              <p className="text-sm text-muted-foreground">
+            <div className="text-center mt-4">
+              <p className="text-sm text-gray-600">
                 Already have an account?{" "}
-                <Link href="/login" className="font-semibold text-primary hover:underline">
+                <Link href="/login" className="text-green-600 hover:underline">
                   Sign in
                 </Link>
               </p>
-            </CardFooter>
-          </Card>
+            </div>
+          </form>
         </div>
       </main>
+
+      <footer className="border-t border-gray-100 py-6">
+        <div className="container px-4 md:px-6 max-w-7xl mx-auto">
+          <div className="flex flex-wrap gap-4">
+            <Link href="/privacy" className="text-sm text-gray-700 hover:text-gray-900">
+              Privacy Policy
+            </Link>
+            <Link href="/certified" className="text-sm text-gray-700 hover:text-gray-900">
+              Certified Engineer
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
-
