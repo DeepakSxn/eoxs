@@ -3,12 +3,20 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Calendar, Clock, Brain, BrushIcon as Broom } from "lucide-react"
-import { Logo } from "./components/logo"
+import { useEffect, useState } from "react"
 
 export default function Home() {
+  // Add state to control visibility
+  const [isLoaded, setIsLoaded] = useState(false)
+
+  // Set loaded state after component mounts
+  useEffect(() => {
+    setIsLoaded(true)
+  }, [])
+
   return (
     <div className="flex flex-col min-h-screen bg-white">
-      <header className="bg-transparent">
+     <header className="bg-transparent">
         <div className="container flex h-20 items-center px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
           <div className="flex items-center">
             <Link href="/" className="flex items-center">
@@ -35,20 +43,24 @@ export default function Home() {
         </div>
       </header>
 
+
       <main className="flex-1">
         <section className="w-full py-16 md:py-24">
           <div className="container px-4 md:px-6 max-w-7xl mx-auto">
             <div className="flex flex-col items-center justify-center space-y-8 text-center">
-              <h1 className="text-5xl md:text-6xl font-bold tracking-tighter">
-                Demo<span className="text-green-600">X</span>plore
+              {/* Apply visibility class based on loaded state */}
+              <h1
+                className={`text-5xl md:text-6xl font-bold tracking-tighter ${isLoaded ? "opacity-100" : "opacity-0"} transition-opacity duration-300`}
+              >
+                <span className="text-gray-900">Demo</span>
+                <span className="text-green-600">X</span>
+                <span className="text-gray-900">plore</span>
               </h1>
               <p className="text-xl md:text-2xl max-w-3xl">Explore our software features at your own pace.</p>
               <div className="pt-4">
-               <Link href={'/login'}>
-               <Button size="lg" className="bg-green-600 hover:bg-green-500 text-white px-12 py-6 text-lg rounded-md">
+                <Button size="lg" className="bg-green-600 hover:bg-green-500 text-white px-12 py-6 text-lg rounded-md">
                   Get Started
                 </Button>
-                </Link>
               </div>
             </div>
           </div>
@@ -58,7 +70,7 @@ export default function Home() {
           <div className="container px-4 md:px-6 max-w-7xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Feature 1 */}
-              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-40">
+              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
                 <div className="flex items-start gap-4">
                   <div className="bg-white p-2">
                     <div className="text-green-600 border-2 border-green-600 rounded p-2 w-12 h-12 flex items-center justify-center">
@@ -73,7 +85,7 @@ export default function Home() {
               </div>
 
               {/* Feature 2 */}
-              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-40">
+              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
                 <div className="flex items-start gap-4">
                   <div className="bg-white p-2">
                     <div className="text-green-600 bg-green-600 rounded-full p-2 w-12 h-12 flex items-center justify-center">
@@ -88,7 +100,7 @@ export default function Home() {
               </div>
 
               {/* Feature 3 */}
-              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-40">
+              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
                 <div className="flex items-start gap-4">
                   <div className="bg-white p-2">
                     <div className="text-green-600 p-2">
@@ -103,7 +115,7 @@ export default function Home() {
               </div>
 
               {/* Feature 4 */}
-              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-40">
+              <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
                 <div className="flex items-start gap-4">
                   <div className="bg-white p-2">
                     <div className="text-green-600 border-2 border-green-600 rounded-full p-2 w-12 h-12 flex items-center justify-center">

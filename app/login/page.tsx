@@ -77,6 +77,8 @@ export default function Login() {
                 </svg>
               </div>
               <img src="light.webp" height={180} width={80}/>
+
+              
             </Link>
           </div>
           <nav className="ml-auto flex gap-8 items-center">
