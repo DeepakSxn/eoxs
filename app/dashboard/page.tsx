@@ -352,9 +352,9 @@ export default function Dashboard() {
       <header className="border-b sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center px-4">
           <div className="mr-4">
-           <Link href="/">
-           <img src="light.webp" alt="logo" />
-           </Link>
+           
+           <img src="/light.webp" height={120} width={80} alt="logo" />
+          
           </div>
           <div className="ml-auto flex items-center gap-4">
       
