@@ -76,7 +76,7 @@ export default function AdminDashboardLayout({
               {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </Button>
             <Link href="/admin-dashboard">
-           <img src="light.webp" alt="logo" />
+            <Logo/>
            </Link>
           </div>
           <div className="flex items-center gap-4">

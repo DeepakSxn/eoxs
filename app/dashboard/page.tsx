@@ -149,7 +149,7 @@ export default function Dashboard() {
         ...doc.data(),
         thumbnail: getSafeUrl(
           doc.data().publicId
-            ? `https://res.cloudinary.com/dvuf7bf0x/video/upload/${doc.data().publicId}.jpg`
+            ? `https://res.cloudinary.com/dh3bnbq9t/video/upload/${doc.data().publicId}.jpg`
             : undefined,
         ),
         description: doc.data().description || "No description available",
