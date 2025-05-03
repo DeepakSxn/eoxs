@@ -267,7 +267,7 @@ export default function Dashboard() {
     const selectedVideoObjects = videos.filter((video) => selectedVideos.includes(video.id));
     
     // Get all General category videos (Company Introduction)
-    const generalVideos = videos.filter(video => video.category === "General");
+    const generalVideos = videos.filter(video => video.category === "Company Introduction");
     
     // Get Miscellaneous videos
     const miscVideos = videos.filter(video => video.category === "Miscellaneous");
