@@ -364,7 +364,7 @@ useEffect(() => {
     // 1. Always add Company Introduction module first
     moduleArray.push({
       name: "Company Introduction",
-      category: "General",
+      category: "Company Introduction",
       videos: videosByCategory["General"] || [],
     })
 
