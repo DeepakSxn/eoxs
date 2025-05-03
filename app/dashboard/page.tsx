@@ -152,7 +152,7 @@ export default function Dashboard() {
             ? `https://res.cloudinary.com/dh3bnbq9t/video/upload/${doc.data().publicId}.jpg`
             : undefined,
         ),
-        description: doc.data().description || "No description available",
+        description: doc.data().description || "-",
         category: doc.data().category || "Uncategorized",
       })) as unknown as Video[];
   
@@ -426,7 +426,7 @@ export default function Dashboard() {
                                 <span className="sr-only">Select</span>
                               </th>
                               <th className="px-4 py-2 text-left font-medium">Feature</th>
-                              <th className="px-4 py-2 text-left font-medium">Description</th>
+                              {/* <th className="px-4 py-2 text-left font-medium">Description</th> */}
                               <th className="px-4 py-2 text-left font-medium w-32">Time Required</th>
                               <th className="px-4 py-2 text-left font-medium w-20">Status</th>
                             </tr>
@@ -441,7 +441,7 @@ export default function Dashboard() {
                                   />
                                 </td>
                                 <td className="px-4 py-3 font-medium">{video.title}</td>
-                                <td className="px-4 py-3 text-muted-foreground">{video.description}</td>
+                                {/* <td className="px-4 py-3 text-muted-foreground">{video.description}</td> */}
                                 <td className="px-4 py-3">
                                   <div className="flex items-center">
                                     <Clock className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
