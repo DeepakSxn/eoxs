@@ -176,7 +176,7 @@ export default function Dashboard() {
       
       // Filter out General and Miscellaneous videos for dashboard display only
       const filteredForDisplay = videosWithWatchStatus.filter(
-        (video) => video.category !== "General" && video.category !== "Miscellaneous"
+        (video) => video.category !== "Company Introduction" && video.category !== "Miscellaneous"
       );
       
       setFilteredVideos(filteredForDisplay);
@@ -197,7 +197,7 @@ export default function Dashboard() {
     // Group videos by category
     const videosByCategory = filteredVideos.reduce((acc, video) => {
       // Exclude General and Miscellaneous categories
-      if (video.category === "General" || video.category === "Miscellaneous") {
+      if (video.category === "Company Introduction" || video.category === "Miscellaneous") {
         return acc;
       }
 
@@ -284,7 +284,7 @@ export default function Dashboard() {
       const watchedVideoIds = new Set(watchHistorySnapshot.docs.map(doc => doc.data().videoId));
 
       // Create the playlist with all videos in the correct order
-      const selectedNonGeneralVideos = selectedVideoObjects.filter(v => v.category !== "General");
+      const selectedNonGeneralVideos = selectedVideoObjects.filter(v => v.category !== "Company Introduction");
       
       // First, add all general videos
       let allPlaylistVideos: typeof videos = [...generalVideos];
