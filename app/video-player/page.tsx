@@ -365,7 +365,7 @@ useEffect(() => {
     moduleArray.push({
       name: "Company Introduction",
       category: "Company Introduction",
-      videos: videosByCategory["General"] || [],
+      videos: videosByCategory["Company Introduction"] || [],
     })
 
     // 2. Add user profession modules
@@ -381,7 +381,7 @@ useEffect(() => {
 
     // 3. Add other categories as modules (except General and Miscellaneous)
     Object.entries(videosByCategory).forEach(([category, categoryVideos]) => {
-      if (category !== "General" && category !== "Miscellaneous") {
+      if (category !== "Company Introduction" && category !== "Miscellaneous") {
         moduleArray.push({
           name: category,
           category,
