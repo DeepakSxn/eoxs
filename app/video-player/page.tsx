@@ -126,9 +126,19 @@ export default function VideoPlayerPage() {
   const [playbackRate, setPlaybackRate] = useState(1)
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false)
 
+  const [volume, setVolume] = useState(100)
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false)
+  const volumeSliderRef = useRef<HTMLDivElement>(null)
+
   const videoRef = useRef<HTMLVideoElement>(null)
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const videoChangeRef = useRef<boolean>(false)
+  // 5-second rewind handler
+  const handleRewind5Seconds = () => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5);
+    }
+  };
 
   useEffect(() => {
     // Check if user is authenticated
@@ -1262,6 +1272,25 @@ useEffect(() => {
     keysToRemove.forEach((key) => sessionStorage.removeItem(key))
   }
 
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.volume = volume / 100
+      setIsMuted(volume === 0)
+    }
+  }, [volume])
+
+  // Hide the slider when clicking outside
+  useEffect(() => {
+    if (!showVolumeSlider) return;
+    function handleClick(e: MouseEvent) {
+      if (volumeSliderRef.current && !volumeSliderRef.current.contains(e.target as Node)) {
+        setShowVolumeSlider(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showVolumeSlider]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -1372,6 +1401,15 @@ useEffect(() => {
                         >
                           {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-white hover:bg-white/20"
+                          onClick={handleRewind5Seconds}
+                        >
+                          <img src="/rewind-double-arrow.png" alt="Rewind 5s" width="22" height="22" style={{ display: 'inline', verticalAlign: 'middle' }} />
+                          <span className="ml-0.3 text-xs text-white">5s</span>
+                        </Button>
 
                         {/* Previous Video Button */}
                         <Button
@@ -1401,14 +1439,33 @@ useEffect(() => {
                         </Button>
 
                         {/* Mute Button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-white hover:bg-white/20"
-                          onClick={toggleMute}
-                        >
-                          {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-                        </Button>
+                        <div className="relative flex items-center">
+                          <button
+                            type="button"
+                            className="focus:outline-none"
+                            onClick={() => setShowVolumeSlider((v) => !v)}
+                          >
+                            {volume === 0 ? <VolumeX className="h-5 w-5 text-white" /> : <Volume2 className="h-5 w-5 text-white" />}
+                          </button>
+                          {showVolumeSlider && (
+                            <div
+                              ref={volumeSliderRef}
+                              className="absolute left-1/2 -translate-x-1/2 bottom-12 z-50 bg-black/60 px-2 py-1 rounded flex items-center shadow-lg"
+                              style={{ minWidth: 90, maxWidth: 120 }}
+                            >
+                              <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={volume}
+                                onChange={e => setVolume(Number(e.target.value))}
+                                className="w-16 accent-primary h-1"
+                                style={{ verticalAlign: 'middle', marginRight: 4 }}
+                              />
+                              <span className="text-xs text-white opacity-70" style={{ minWidth: 16, textAlign: 'right' }}>{volume}</span>
+                            </div>
+                          )}
+                        </div>
 
                         {/* Playback Speed Dropdown */}
                         <DropdownMenu>
