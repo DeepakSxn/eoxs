@@ -37,6 +37,22 @@ interface Module {
   videos: Video[]
 }
 
+const MODULE_ORDER = [
+  "Sales",
+  "Processing",
+  "Inventory",
+  "Purchase",
+  "Finance and Accounting",
+  "Shipping and Receiving",
+  "CRM",
+  "IT & Security",
+  "Advanced Analytics & Reporting",
+  "Master Data Management",
+  "Toll Processing",
+  "Contact Management",
+  "QA",
+];
+
 export default function Dashboard() {
   const [videos, setVideos] = useState<Video[]>([])
   const [filteredVideos, setFilteredVideos] = useState<Video[]>([])
@@ -200,7 +216,6 @@ export default function Dashboard() {
       if (video.category === "Company Introduction" || video.category === "Miscellaneous") {
         return acc;
       }
-
       const category = video.category || "Uncategorized";
       if (!acc[category]) {
         acc[category] = [];
@@ -212,35 +227,45 @@ export default function Dashboard() {
     const moduleArray: Module[] = [];
     // Calculate total duration for each module
     const calculateTotalDuration = (videos: Video[]): string => {
-      let totalMinutes = 0
-
+      let totalMinutes = 0;
       videos.forEach((video) => {
         // Extract minutes from duration string (e.g., "5 minutes" -> 5)
-        const durationMatch = video.duration.match(/(\d+)/)
+        const durationMatch = video.duration.match(/(\d+)/);
         if (durationMatch && durationMatch[1]) {
-          totalMinutes += Number.parseInt(durationMatch[1], 10)
+          totalMinutes += Number.parseInt(durationMatch[1], 10);
         }
-      })
-
-      return `${totalMinutes} mins`
-    }
+      });
+      return `${totalMinutes} mins`;
+    };
 
     // Add other categories as modules (except General and Miscellaneous)
     Object.entries(videosByCategory)
-      .sort(([a], [b]) => a.localeCompare(b))
       .forEach(([category, videos]) => {
         moduleArray.push({
           name: `${category} Module Overview`,
           category,
           totalDuration: calculateTotalDuration(videos),
           videos,
-        })
-      })
+        });
+      });
+
+    // Sort modules according to MODULE_ORDER
+    moduleArray.sort((a, b) => {
+      const indexA = MODULE_ORDER.findIndex(
+        (name) => a.category.toLowerCase().replace(/[^a-z]/gi, "") === name.toLowerCase().replace(/[^a-z]/gi, "")
+      );
+      const indexB = MODULE_ORDER.findIndex(
+        (name) => b.category.toLowerCase().replace(/[^a-z]/gi, "") === name.toLowerCase().replace(/[^a-z]/gi, "")
+      );
+      if (indexA === -1 && indexB === -1) return a.category.localeCompare(b.category);
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      return indexA - indexB;
+    });
 
     // Set all modules as expanded by default
-    setExpandedModules(moduleArray.map((module) => module.category))
-
-    setModules(moduleArray)
+    setExpandedModules(moduleArray.map((module) => module.category));
+    setModules(moduleArray);
   }
 
   const handleVideoSelection = (videoId: string) => {
