@@ -32,6 +32,26 @@
   }
 }
 
+/* Add backdrop blur and proper transparency handling for dropdowns and lists */
+[data-radix-popper-content-wrapper] {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+[data-radix-popper-content-wrapper] > * {
+  background-color: hsl(var(--background) / 0.95);
+}
+
+/* Ensure proper z-index stacking for dropdowns */
+[data-radix-popper-content-wrapper] {
+  z-index: 50;
+}
+
+/* Improve hover states for better visibility */
+[data-radix-popper-content-wrapper] *:hover {
+  background-color: hsl(var(--accent) / 0.8);
+}
+
 h1,
 h2,
 h3,
