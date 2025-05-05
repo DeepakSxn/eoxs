@@ -34,8 +34,8 @@
 
 /* Add backdrop blur and proper transparency handling for dropdowns and lists */
 [data-radix-popper-content-wrapper] {
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 [data-radix-popper-content-wrapper] > * {

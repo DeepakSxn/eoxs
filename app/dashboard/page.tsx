@@ -37,6 +37,87 @@ interface Module {
   videos: Video[]
 }
 
+const VIDEO_ORDER: Record<string, string[]> = {
+  "Sales": [
+    "Sales Module Overview",
+    "Sales Order for Coils",
+    "Sales Order for Plates",
+    "Sales Order for Tubing & Pipes",
+    "Sales order for Structural Steel",
+    "Sales Orders for Bars",
+    "Handling Backorder and Partial Delivery",
+    "How does Buyout work in the system",
+  ],
+  "Processing": [
+    "Processing Module Overview",
+    "Applying Processing Cost to Materials",
+    "Toll Processing Purchase Orders",
+    "Work Order Status and Tracking for Multiple Processing Lines",
+  ],
+  "Inventory": [
+    "Inventory Module Overview",
+    "Inventory for Plate and Sheet Products",
+    "Material Traceability (Heat Numbers, Mill Certificates)",
+    "Inventory Valuation (FIFO, Average & Actual Costing)",
+    "Scrap Management",
+    "Additional Cost",
+  ],
+  "Purchase": [
+    "Creating Purchase Order for Coils",
+    "Creating Purchase Orders for Plate and sheets",
+    "Creating Purchase Orders for Long Products",
+    "Freight Cost on PO's",
+  ],
+  "Finance and Accounting": [
+    "Finance Module Overview",
+    "Creating Customer Invoice",
+    "Creating Vendor Bills",
+    "Managing Accounts Payable and Receivable",
+    "Multi-Stage Invoicing for Complex Orders",
+    "Financial Reporting_ P&L and Balance sheets",
+    "Tax Compliance and Reporting",
+    "Payment Terms",
+    "Handling Customer Credits",
+    "Managing Multiple Entities or Divisions",
+    "Multi currency Transactions",
+    "Partner Aging",
+  ],
+  "Shipping and Receiving": [
+    "Purchase Return",
+    "Generating Packing List",
+  ],
+  "CRM": [
+    "CRM Module Overview",
+    "Sales Pipeline and Leads Pipeline",
+  ],
+  "IT & Security": [
+    "User Access Control and Role-Based Permissions",
+  ],
+  "Advanced Analytics & Reporting": [
+    "Real-Time Dashboards for Sales, Inventory, and Processing Operations",
+    "Custom Reports for Processing",
+    "Tracking Lead Times for Processing & Delivery",
+  ],
+  "Master Data Management": [
+    "Product Master Creation and Management",
+    "Warehouse Master and Location Managment",
+    "Unit of Measure Setup (Pounds, Kg, Foot, Inches, CWT, etc.)",
+  ],
+  "Contact Management": [
+    "Contacts Module Overview",
+    "Managing Customer Contacts",
+    "Managing Supplier & Vendor Contacts",
+    "Configuring Custom Fields and Grouping Contacts",
+    "Maps Feature",
+    "Days Feature",
+    "Email",
+    "Credit Management",
+  ],
+  "QA": [
+    "Mill Certs",
+  ],
+};
+
 const MODULE_ORDER = [
   "Sales",
   "Processing",
@@ -241,11 +322,29 @@ export default function Dashboard() {
     // Add other categories as modules (except General and Miscellaneous)
     Object.entries(videosByCategory)
       .forEach(([category, videos]) => {
+        // Normalize category for lookup
+        const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/gi, "");
+        const normalizedCategory = normalize(category);
+        // Find the VIDEO_ORDER key that matches the normalized category
+        const videoOrderKey = Object.keys(VIDEO_ORDER).find(
+          (key) => normalize(key) === normalizedCategory
+        );
+        const orderArr = videoOrderKey ? VIDEO_ORDER[videoOrderKey] : undefined;
+        const sortedVideos = [...videos].sort((a, b) => {
+          const orderA = orderArr?.indexOf(a.title) ?? Number.MAX_SAFE_INTEGER;
+          const orderB = orderArr?.indexOf(b.title) ?? Number.MAX_SAFE_INTEGER;
+          if (orderA !== Number.MAX_SAFE_INTEGER && orderB !== Number.MAX_SAFE_INTEGER) {
+            return orderA - orderB;
+          }
+          if (orderA !== Number.MAX_SAFE_INTEGER) return -1;
+          if (orderB !== Number.MAX_SAFE_INTEGER) return 1;
+          return a.title.localeCompare(b.title);
+        });
         moduleArray.push({
           name: `${category} Module Overview`,
           category,
-          totalDuration: calculateTotalDuration(videos),
-          videos,
+          totalDuration: calculateTotalDuration(sortedVideos),
+          videos: sortedVideos,
         });
       });
 
