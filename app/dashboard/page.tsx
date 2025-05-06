@@ -390,64 +390,86 @@ export default function Dashboard() {
       return;
     }
   
-    // Get the selected videos
-    const selectedVideoObjects = videos.filter((video) => selectedVideos.includes(video.id));
-    
-    // Get all General category videos (Company Introduction)
-    const generalVideos = videos.filter(video => video.category === "Company Introduction");
-    
-    // Get Miscellaneous videos
-    const miscVideos = videos.filter(video => video.category === "Miscellaneous");
-
     try {
+      // Get the selected videos
+      const selectedVideoObjects = videos.filter((video) => selectedVideos.includes(video.id));
+      const generalVideos = videos.filter(video => video.category === "Company Introduction");
+      const miscVideos = videos.filter(video => video.category === "Miscellaneous");
+
       // Query Firestore for all completed videos by this user
       const watchHistoryQuery = query(
         collection(db, "videoWatchEvents"),
         where("userId", "==", auth.currentUser?.uid),
         where("completed", "==", true)
       );
-
       const watchHistorySnapshot = await getDocs(watchHistoryQuery);
       const watchedVideoIds = new Set(watchHistorySnapshot.docs.map(doc => doc.data().videoId));
 
-      // Create the playlist with all videos in the correct order
-      const selectedNonGeneralVideos = selectedVideoObjects.filter(v => v.category !== "Company Introduction");
-      
-      // First, add all general videos
-      let allPlaylistVideos: typeof videos = [...generalVideos];
-      
-      // Then add selected videos (excluding General category)
-      allPlaylistVideos = [...allPlaylistVideos, ...selectedNonGeneralVideos];
-      
-      // Finally add Miscellaneous videos that aren't already in the playlist
-      const existingVideoIds = new Set([...generalVideos, ...selectedNonGeneralVideos].map(v => v.id));
-      const uniqueMiscVideos = miscVideos.filter(v => !existingVideoIds.has(v.id));
-      allPlaylistVideos = [...allPlaylistVideos, ...uniqueMiscVideos];
+      // Check if there's an existing playlist in localStorage
+      const existingPlaylistStr = localStorage.getItem("currentPlaylist");
+      let existingPlaylist = existingPlaylistStr ? JSON.parse(existingPlaylistStr) : null;
+
+      // Combine all video IDs (existing + new selection)
+      let combinedVideoIds = new Set<string>();
+      if (existingPlaylist) {
+        existingPlaylist.videos.forEach((v: Video) => combinedVideoIds.add(v.id));
+      }
+      selectedVideoObjects.forEach(v => combinedVideoIds.add(v.id));
+      generalVideos.forEach(v => combinedVideoIds.add(v.id));
+      miscVideos.forEach(v => combinedVideoIds.add(v.id));
+
+      // Helper to get canonical order of all videos
+      const getOrderedVideos = () => {
+        const ordered: Video[] = [];
+        // 1. General videos first (in their order)
+        generalVideos.forEach(v => {
+          if (combinedVideoIds.has(v.id)) ordered.push(v);
+        });
+        // 2. By module order
+        MODULE_ORDER.forEach(moduleName => {
+          const videoTitles = VIDEO_ORDER[moduleName];
+          if (videoTitles) {
+            videoTitles.forEach(title => {
+              const video = videos.find(v => v.title === title && v.category === moduleName);
+              if (video && combinedVideoIds.has(video.id) && !ordered.some(o => o.id === video.id)) {
+                ordered.push(video);
+              }
+            });
+          }
+          // Add any videos in this category not in VIDEO_ORDER
+          videos.filter(v => v.category === moduleName && combinedVideoIds.has(v.id) && (!videoTitles || !videoTitles.includes(v.title)))
+            .forEach(v => {
+              if (!ordered.some(o => o.id === v.id)) ordered.push(v);
+            });
+        });
+        // 3. Miscellaneous at the end
+        miscVideos.forEach(v => {
+          if (combinedVideoIds.has(v.id) && !ordered.some(o => o.id === v.id)) ordered.push(v);
+        });
+        return ordered;
+      };
+
+      const allPlaylistVideos = getOrderedVideos();
 
       // Find the first unwatched video to start playback
       let firstVideoToPlay: string;
-
-      // First, check for unwatched general videos
       const firstUnwatchedGeneral = generalVideos.find(video => !watchedVideoIds.has(video.id));
-      
       if (firstUnwatchedGeneral) {
-        // If there's an unwatched general video, start with that
         firstVideoToPlay = firstUnwatchedGeneral.id;
       } else {
-        // If all general videos are watched, start with the first selected video
-        firstVideoToPlay = selectedVideoObjects[0].id;
+        const firstUnwatchedVideo = allPlaylistVideos.find(video => !watchedVideoIds.has(video.id));
+        firstVideoToPlay = firstUnwatchedVideo ? firstUnwatchedVideo.id : allPlaylistVideos[0].id;
       }
-    
-      // Store the playlist in localStorage
-      const customPlaylist = {
+
+      // Update the playlist in localStorage
+      const updatedPlaylist = {
         id: "custom-playlist",
         videos: allPlaylistVideos,
-        createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 },
+        createdAt: existingPlaylist?.createdAt || { seconds: Date.now() / 1000, nanoseconds: 0 },
       };
-    
-      localStorage.setItem("currentPlaylist", JSON.stringify(customPlaylist));
-    
-      // Set as active playlist
+      localStorage.setItem("currentPlaylist", JSON.stringify(updatedPlaylist));
+
+      // Update active playlist
       const activePlaylist = {
         id: "custom-playlist",
         title: "Custom Playlist",
@@ -455,14 +477,14 @@ export default function Dashboard() {
         completionPercentage: 0,
       };
       localStorage.setItem("activePlaylist", JSON.stringify(activePlaylist));
-    
+
       // Navigate to the first unwatched video
       router.push(`/video-player?videoId=${firstVideoToPlay}&playlistId=custom-playlist`);
     } catch (error) {
-      console.error("Error creating playlist:", error);
+      console.error("Error updating playlist:", error);
       toast({
         title: "Error",
-        description: "Failed to create playlist. Please try again.",
+        description: "Failed to update playlist. Please try again.",
         variant: "destructive",
       });
     }
