@@ -1342,6 +1342,14 @@ useEffect(() => {
         </div>
       </header>
 
+      {/* Back Button */}
+      <div className="container mt-4 mb-2">
+        <Button variant="outline" onClick={() => router.push("/dashboard")} className="flex items-center gap-2">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Dashboard
+        </Button>
+      </div>
+
       <main className="flex-1 container py-8 px-4">
         <div className="mb-6">
           <h1 className="text-2xl font-bold">{currentVideo.title}</h1>
