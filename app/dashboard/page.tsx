@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { collection, getDocs, orderBy, query, where } from "firebase/firestore"
 
@@ -145,6 +145,9 @@ export default function Dashboard() {
   const [expandedModules, setExpandedModules] = useState<string[]>([])
 
   const router = useRouter()
+
+  const globalCheckboxRef = useRef<HTMLButtonElement>(null);
+  const moduleCheckboxRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
     // Check for navigation flag
@@ -471,6 +474,30 @@ export default function Dashboard() {
     router.push("/login")
   }
 
+  useEffect(() => {
+    if (globalCheckboxRef.current) {
+      // Set indeterminate on the underlying input if present
+      const input = globalCheckboxRef.current.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+      if (input) {
+        input.indeterminate =
+          selectedVideos.length > 0 &&
+          !modules.flatMap(module => module.videos.map(v => v.id)).every(id => selectedVideos.includes(id));
+      }
+    }
+    modules.forEach((module, i) => {
+      const moduleVideoIds = module.videos.map(v => v.id);
+      const btn = moduleCheckboxRefs.current[i];
+      if (btn) {
+        const input = btn.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+        if (input) {
+          input.indeterminate =
+            moduleVideoIds.some(id => selectedVideos.includes(id)) &&
+            !moduleVideoIds.every(id => selectedVideos.includes(id));
+        }
+      }
+    });
+  }, [selectedVideos, modules]);
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <header className="border-b sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -525,12 +552,47 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Global Select All Checkbox */}
+              <div className="flex items-center mb-2">
+                <Checkbox
+                  ref={globalCheckboxRef}
+                  checked={
+                    modules.length > 0 &&
+                    modules.flatMap(module => module.videos.map(v => v.id)).every(id => selectedVideos.includes(id))
+                  }
+                  onCheckedChange={() => {
+                    const allVideoIds = modules.flatMap(module => module.videos.map(v => v.id));
+                    if (selectedVideos.length === allVideoIds.length) {
+                      setSelectedVideos([]);
+                    } else {
+                      setSelectedVideos(allVideoIds);
+                    }
+                  }}
+                  className="mr-2"
+                />
+                <span className="text-sm">Select All Videos</span>
+              </div>
               <Accordion type="multiple" value={expandedModules} className="w-full border rounded-md overflow-hidden">
                 {modules.map((module, moduleIndex) => (
                   <AccordionItem key={moduleIndex} value={module.category} className="border-b last:border-b-0">
                     <AccordionTrigger className="px-4 py-3 hover:no-underline bg-muted/30 hover:bg-muted/50">
-                      <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center justify-between w-full bg-muted rounded">
                         <div className="flex items-center">
+                          {/* Module Select All Checkbox */}
+                          <Checkbox
+                            ref={el => { moduleCheckboxRefs.current[moduleIndex] = el; }}
+                            checked={module.videos.every(v => selectedVideos.includes(v.id))}
+                            onCheckedChange={() => {
+                              const moduleVideoIds = module.videos.map(v => v.id);
+                              const allSelected = moduleVideoIds.every(id => selectedVideos.includes(id));
+                              if (allSelected) {
+                                setSelectedVideos(selectedVideos.filter(id => !moduleVideoIds.includes(id)));
+                              } else {
+                                setSelectedVideos([...new Set([...selectedVideos, ...moduleVideoIds])]);
+                              }
+                            }}
+                            className="mr-2"
+                          />
                           <span className="font-medium text-base">{module.name}</span>
                           <Badge variant="outline" className="ml-2">
                             {module.totalDuration}

@@ -133,6 +133,8 @@ export default function VideoPlayerPage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const videoChangeRef = useRef<boolean>(false)
+  const [isHovered, setIsHovered] = useState(false)
+
   // 5-second rewind handler
   const handleRewind5Seconds = () => {
     if (videoRef.current) {
@@ -1359,7 +1361,12 @@ useEffect(() => {
           <div className="lg:col-span-2">
             <Card className="overflow-hidden">
               <CardContent className="p-0">
-                <div ref={playerContainerRef} className="relative aspect-video bg-black">
+                <div
+                  ref={playerContainerRef}
+                  className="relative aspect-video bg-black"
+                  onMouseEnter={() => setIsHovered(true)}
+                  onMouseLeave={() => setIsHovered(false)}
+                >
                   {/* Video Element */}
                   <video
                     ref={videoRef}
@@ -1384,7 +1391,9 @@ useEffect(() => {
                   />
 
                   {/* Custom Controls */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                  <div
+                    className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 transition-opacity duration-300 ${isPlaying && !isHovered ? "opacity-0 pointer-events-none" : "opacity-100 pointer-events-auto"}`}
+                  >
                     {/* Progress Bar */}
                     <div className="w-full h-1 bg-white/30 mb-4 rounded-full overflow-hidden">
                       <div className="h-full bg-primary rounded-full" style={{ width: `${progress}%` }} />
