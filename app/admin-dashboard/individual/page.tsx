@@ -57,6 +57,8 @@ interface UserAnalytics {
   name?: string
   email: string
   companyName?: string
+  phoneCountryCode?: string
+  phoneNumber?: string
   timeWatched: string
   timeWatchedSeconds: number
   videoCount: number
@@ -190,8 +192,8 @@ export default function IndividualAnalyticsPage() {
         name: doc.data().name || "Unknown User",
         email: doc.data().email || "Unknown Email",
         companyName: doc.data().companyName || "Unknown Company",
-        profession: doc.data().profession || doc.data().primaryProfession || "Unknown Profession",
-        secondaryProfession: doc.data().secondaryProfession || null,
+        phoneCountryCode: doc.data().phoneCountryCode || "",
+        phoneNumber: doc.data().phoneNumber || "",
       }))
 
       // Create a map of userId to user data for quick lookup
@@ -284,6 +286,8 @@ export default function IndividualAnalyticsPage() {
           name: userData.name,
           email: userData.email || "Unknown Email",
           companyName: userData.companyName,
+          phoneCountryCode: userData.phoneCountryCode,
+          phoneNumber: userData.phoneNumber,
           timeWatched: "0s",
           timeWatchedSeconds: 0,
           videoCount: 0,
@@ -1017,17 +1021,18 @@ export default function IndividualAnalyticsPage() {
                         <h3 className="text-sm font-medium text-muted-foreground">Name</h3>
                         <p>{selectedUser.name || "Unknown"}</p>
                       </div>
-
                       <div>
                         <h3 className="text-sm font-medium text-muted-foreground">Email</h3>
                         <p>{selectedUser.email}</p>
                       </div>
-
                       <div>
                         <h3 className="text-sm font-medium text-muted-foreground">Company</h3>
                         <p>{selectedUser.companyName || "Unknown"}</p>
                       </div>
-
+                      <div>
+                        <h3 className="text-sm font-medium text-muted-foreground">Phone</h3>
+                        <p>{(selectedUser.phoneCountryCode || "")} {(selectedUser.phoneNumber || "-")}</p>
+                      </div>
                       <div>
                         <h3 className="text-sm font-medium text-muted-foreground">Activity Summary</h3>
                         <p>
