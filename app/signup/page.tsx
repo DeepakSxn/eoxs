@@ -13,6 +13,7 @@ import { Loader2 } from "lucide-react"
 import { db, auth } from "../../firebase"
 import { collection, addDoc, serverTimestamp, getDocs } from "firebase/firestore"
 import { createUserWithEmailAndPassword } from "firebase/auth"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 
 export default function SignUp() {
   const router = useRouter()
@@ -24,7 +25,22 @@ export default function SignUp() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
- 
+  const [phoneCountryCode, setPhoneCountryCode] = useState("+1")
+  const [phoneNumber, setPhoneNumber] = useState("")
+
+  const countryCodes = [
+    { code: "+1", label: "🇺🇸 +1" },
+    { code: "+44", label: "🇬🇧 +44" },
+    { code: "+91", label: "🇮🇳 +91" },
+    { code: "+61", label: "🇦🇺 +61" },
+    { code: "+81", label: "🇯🇵 +81" },
+    { code: "+49", label: "🇩🇪 +49" },
+    { code: "+33", label: "🇫🇷 +33" },
+    { code: "+971", label: "🇦🇪 +971" },
+    { code: "+86", label: "🇨🇳 +86" },
+    { code: "+7", label: "🇷🇺 +7" },
+    // Add more as needed
+  ]
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -84,9 +100,22 @@ export default function SignUp() {
     if (!companyName) {
       errors.push("Company Name is required")
     }
-
+    
+    if (!phoneNumber) {
+      errors.push("Phone number is required")
+    } else if (!/^\\d{6,15}$/.test(phoneNumber)) {
+      errors.push("Phone number must be digits only (6-15 digits)")
+    }
+    
     if (!termsAccepted) {
       errors.push("You must accept the terms and conditions")
+    }
+
+
+    if (!phoneCountryCode) {
+      errors.push("Country code is required")
+    } else if (!/^\+\d{1,4}$/.test(phoneCountryCode)) {
+      errors.push("Country code must start with + and be 1-4 digits")
     }
 
     if (errors.length > 0) {
@@ -104,6 +133,8 @@ export default function SignUp() {
         email: userCredential.user.email,
         name: name,
         companyName: companyName,
+        phoneCountryCode: phoneCountryCode,
+        phoneNumber: phoneNumber,
         createdAt: serverTimestamp(),
         role: "user",
       })
@@ -204,6 +235,31 @@ export default function SignUp() {
                 required
                 disabled={loading}
                 className="h-12 text-base rounded-md"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                id="phoneCountryCode"
+                type="text"
+                placeholder="+1"
+                value={phoneCountryCode}
+                onChange={e => setPhoneCountryCode(e.target.value.replace(/[^+\d]/g, ""))}
+                required
+                disabled={loading}
+                className="h-12 text-base rounded-md w-24"
+                maxLength={5}
+              />
+              <Input
+                id="phoneNumber"
+                type="tel"
+                placeholder="Phone Number"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
+                required
+                disabled={loading}
+                className="h-12 text-base rounded-md flex-1"
+                maxLength={15}
               />
             </div>
 

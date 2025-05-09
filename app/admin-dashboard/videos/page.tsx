@@ -247,7 +247,7 @@ export default function VideosPage() {
             <TableRow>
               <TableHead>Title</TableHead>
               <TableHead>Category</TableHead>
-           
+             
               <TableHead>Created At</TableHead>
               <TableHead className="w-[100px]">Actions</TableHead>
             </TableRow>

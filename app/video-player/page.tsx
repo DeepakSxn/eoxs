@@ -126,9 +126,25 @@ export default function VideoPlayerPage() {
   const [playbackRate, setPlaybackRate] = useState(1)
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false)
 
+  const [volume, setVolume] = useState(100)
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false)
+  const volumeSliderRef = useRef<HTMLDivElement>(null)
+
   const videoRef = useRef<HTMLVideoElement>(null)
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const videoChangeRef = useRef<boolean>(false)
+  const [isHovered, setIsHovered] = useState(false)
+
+  // Add these state variables at the top with other state declarations
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+  const [lastPosition, setLastPosition] = useState(0);
+
+  // 5-second rewind handler
+  const handleRewind5Seconds = () => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5);
+    }
+  };
 
   useEffect(() => {
     // Check if user is authenticated
@@ -266,53 +282,112 @@ export default function VideoPlayerPage() {
     }
   }, [])
 
-  // Add a new useEffect to handle video playback when currentVideo changes
-  // Add this to the useEffect that handles video changes
-// Add this to the useEffect that handles video changes
-useEffect(() => {
-  if (currentVideo && videoRef.current && videoChangeRef.current) {
-    // Reset video state
-    setProgress(0);
-    setCurrentTime(0);
-    setIsPlaying(false);
-    
-    // Reset mute state
-    setIsMuted(false);
-    if (videoRef.current) {
-      videoRef.current.muted = false;
-    }
-    
-    // Reset playback rate
-    setPlaybackRate(1);
-    if (videoRef.current) {
-      videoRef.current.playbackRate = 1;
-    }
+  // Modify the loadVideoProgress function
+  const loadVideoProgress = async (videoId: string) => {
+    if (!user || !videoId) return 0;
 
-    // Auto-play the video after a short delay
-    const playTimer = setTimeout(() => {
-      if (videoRef.current) {
-        videoRef.current.load();
-        videoRef.current
-          .play()
-          .then(() => {
-            setIsPlaying(true);
-            setWatchStartTime(Date.now() / 1000);
-            videoChangeRef.current = false;
-          })
-          .catch((error) => {
-            console.error("Error playing video:", error);
-            videoChangeRef.current = false;
-          });
+    try {
+      console.log('Loading video progress for:', videoId);
+      const watchEventsRef = collection(db, "videoWatchEvents");
+      const q = query(
+        watchEventsRef,
+        where("userId", "==", user.uid),
+        where("videoId", "==", videoId)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const data = querySnapshot.docs[0].data();
+        console.log('Found saved progress:', data);
+        return data.lastPosition || 0;
       }
-    }, 300);
+      console.log('No saved progress found');
+      return 0;
+    } catch (error) {
+      console.error("Error loading video progress:", error);
+      return 0;
+    }
+  };
 
-    // Clear the timeout on cleanup
-    return () => clearTimeout(playTimer);
-  }
-}, [currentVideo]);
+  // Add these new functions
+  const handleResume = () => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = lastPosition;
+      videoRef.current.play()
+        .then(() => {
+          setIsPlaying(true);
+          setWatchStartTime(Date.now() / 1000);
+          videoChangeRef.current = false;
+        })
+        .catch((error) => {
+          console.error("Error playing video:", error);
+        });
+    }
+    setShowResumeDialog(false);
+  };
 
+  const handleStartFromBeginning = () => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+      videoRef.current.play()
+        .then(() => {
+          setIsPlaying(true);
+          setWatchStartTime(Date.now() / 1000);
+          videoChangeRef.current = false;
+        })
+        .catch((error) => {
+          console.error("Error playing video:", error);
+        });
+    }
+    setShowResumeDialog(false);
+  };
 
+  // Modify the useEffect that handles video changes
+  useEffect(() => {
+    if (currentVideo && videoRef.current && videoChangeRef.current) {
+      console.log('Video changed, loading progress...');
+      // Reset video state
+      setProgress(0);
+      setCurrentTime(0);
+      setIsPlaying(false);
+      
+      // Reset mute state
+      setIsMuted(false);
+      if (videoRef.current) {
+        videoRef.current.muted = false;
+      }
+      
+      // Reset playback rate
+      setPlaybackRate(1);
+      if (videoRef.current) {
+        videoRef.current.playbackRate = 1;
+      }
 
+      // Load and restore video progress
+      const loadProgress = async () => {
+        try {
+          const savedPosition = await loadVideoProgress(currentVideo.id);
+          console.log('Loaded saved position:', savedPosition);
+          
+          if (savedPosition > 0) {
+            setLastPosition(savedPosition);
+            setShowResumeDialog(true);
+          } else {
+            // If no saved position, just show the video
+            videoRef.current?.load();
+          }
+          
+          videoChangeRef.current = false;
+        } catch (error) {
+          console.error("Error loading video progress:", error);
+          videoRef.current?.load();
+        }
+      };
+
+      loadProgress();
+    }
+  }, [currentVideo]);
 
   // Add this new function to fetch videos directly from Firestore
   const fetchCategoryVideos = async (category: string) => {
@@ -849,6 +924,11 @@ useEffect(() => {
       const currentProgressPercentage = Math.floor((current / videoDuration) * 100);
       setProgress(currentProgressPercentage);
   
+      // Save progress every 2 seconds instead of 5
+      if (current % 2 < 0.1) { // Save roughly every 2 seconds
+        saveVideoProgress(current);
+      }
+  
       // Update video progress for this specific video
       setVideoProgress((prev) => ({
         ...prev,
@@ -891,6 +971,49 @@ useEffect(() => {
           }
         }
       }
+    }
+  };
+  
+  // Add this new function to save video progress
+  const saveVideoProgress = async (currentTime: number) => {
+    if (!user || !currentVideo || !currentVideo.id) return;
+
+    try {
+      console.log('Saving video progress:', { currentTime, videoId: currentVideo.id });
+      const watchEventsRef = collection(db, "videoWatchEvents");
+      const q = query(
+        watchEventsRef,
+        where("userId", "==", user.uid),
+        where("videoId", "==", currentVideo.id)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      const progressData = {
+        lastWatchedAt: serverTimestamp(),
+        lastPosition: currentTime,
+        progress: Math.floor((currentTime / duration) * 100),
+        videoId: currentVideo.id,
+        userId: user.uid,
+        userEmail: user.email || "Unknown User",
+        playlistId: playlist?.id,
+        videoTitle: currentVideo.title,
+        category: currentVideo.category,
+        tags: currentVideo.tags
+      };
+
+      if (!querySnapshot.empty) {
+        // Update existing document
+        const docRef = doc(db, "videoWatchEvents", querySnapshot.docs[0].id);
+        await updateDoc(docRef, progressData);
+        console.log('Updated existing progress document');
+      } else {
+        // Create new document
+        await addDoc(watchEventsRef, progressData);
+        console.log('Created new progress document');
+      }
+    } catch (error) {
+      console.error("Error saving video progress:", error);
     }
   };
   
@@ -1262,6 +1385,25 @@ useEffect(() => {
     keysToRemove.forEach((key) => sessionStorage.removeItem(key))
   }
 
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.volume = volume / 100
+      setIsMuted(volume === 0)
+    }
+  }, [volume])
+
+  // Hide the slider when clicking outside
+  useEffect(() => {
+    if (!showVolumeSlider) return;
+    function handleClick(e: MouseEvent) {
+      if (volumeSliderRef.current && !volumeSliderRef.current.contains(e.target as Node)) {
+        setShowVolumeSlider(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showVolumeSlider]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -1311,6 +1453,14 @@ useEffect(() => {
         </div>
       </header>
 
+      {/* Back Button */}
+      <div className="container mt-4 mb-2">
+        <Button variant="outline" onClick={() => router.push("/dashboard")} className="flex items-center gap-2">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Dashboard
+        </Button>
+      </div>
+
       <main className="flex-1 container py-8 px-4">
         <div className="mb-6">
           <h1 className="text-2xl font-bold">{currentVideo.title}</h1>
@@ -1330,7 +1480,12 @@ useEffect(() => {
           <div className="lg:col-span-2">
             <Card className="overflow-hidden">
               <CardContent className="p-0">
-                <div ref={playerContainerRef} className="relative aspect-video bg-black">
+                <div
+                  ref={playerContainerRef}
+                  className="relative aspect-video bg-black"
+                  onMouseEnter={() => setIsHovered(true)}
+                  onMouseLeave={() => setIsHovered(false)}
+                >
                   {/* Video Element */}
                   <video
                     ref={videoRef}
@@ -1355,7 +1510,9 @@ useEffect(() => {
                   />
 
                   {/* Custom Controls */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                  <div
+                    className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 transition-opacity duration-300 ${isPlaying && !isHovered ? "opacity-0 pointer-events-none" : "opacity-100 pointer-events-auto"}`}
+                  >
                     {/* Progress Bar */}
                     <div className="w-full h-1 bg-white/30 mb-4 rounded-full overflow-hidden">
                       <div className="h-full bg-primary rounded-full" style={{ width: `${progress}%` }} />
@@ -1364,58 +1521,136 @@ useEffect(() => {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {/* Play/Pause Button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-white hover:bg-white/20"
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className="text-white hover:bg-white/20 p-2 rounded cursor-pointer"
                           onClick={isPlaying ? handleVideoPause : handleVideoPlay}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              isPlaying ? handleVideoPause() : handleVideoPlay();
+                            }
+                          }}
                         >
                           {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-                        </Button>
+                        </div>
+
+                        {/* Rewind Button */}
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className="text-white hover:bg-white/20 p-2 rounded cursor-pointer"
+                          onClick={handleRewind5Seconds}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              handleRewind5Seconds();
+                            }
+                          }}
+                        >
+                          <img src="/rewind-double-arrow.png" alt="Rewind 5s" width="22" height="22" style={{ display: 'inline', verticalAlign: 'middle' }} />
+                          <span className="ml-0.3 text-xs text-white">5s</span>
+                        </div>
 
                         {/* Previous Video Button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-white hover:bg-white/20"
-                          onClick={playPreviousVideo}
-                          disabled={currentVideoIndex === 0}
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className={`text-white hover:bg-white/20 p-2 rounded cursor-pointer ${currentVideoIndex === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          onClick={currentVideoIndex === 0 ? undefined : playPreviousVideo}
+                          onKeyDown={(e) => {
+                            if ((e.key === 'Enter' || e.key === ' ') && currentVideoIndex !== 0) {
+                              playPreviousVideo();
+                            }
+                          }}
                         >
                           <SkipBack className="h-5 w-5" />
-                        </Button>
+                        </div>
 
                         {/* Next Video Button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-white hover:bg-white/20"
-                          onClick={playNextVideo}
-                          disabled={
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className={`text-white hover:bg-white/20 p-2 rounded cursor-pointer ${
                             !playlist?.videos ||
                             !Array.isArray(playlist.videos) ||
                             currentVideoIndex >= playlist.videos.length - 1 ||
                             (!isVideoPlayable(currentVideoIndex + 1) && videoWatchEvents[currentVideo.id] !== true)
+                              ? 'opacity-50 cursor-not-allowed'
+                              : ''
+                          }`}
+                          onClick={
+                            playlist?.videos &&
+                            Array.isArray(playlist.videos) &&
+                            currentVideoIndex < playlist.videos.length - 1 &&
+                            (isVideoPlayable(currentVideoIndex + 1) || videoWatchEvents[currentVideo.id] === true)
+                              ? playNextVideo
+                              : undefined
                           }
+                          onKeyDown={(e) => {
+                            if (
+                              (e.key === 'Enter' || e.key === ' ') &&
+                              playlist?.videos &&
+                              Array.isArray(playlist.videos) &&
+                              currentVideoIndex < playlist.videos.length - 1 &&
+                              (isVideoPlayable(currentVideoIndex + 1) || videoWatchEvents[currentVideo.id] === true)
+                            ) {
+                              playNextVideo();
+                            }
+                          }}
                         >
                           <SkipForward className="h-5 w-5" />
-                        </Button>
+                        </div>
 
-                        {/* Mute Button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-white hover:bg-white/20"
-                          onClick={toggleMute}
-                        >
-                          {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-                        </Button>
+                        {/* Volume Control */}
+                        <div className="relative flex items-center">
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            className="focus:outline-none cursor-pointer"
+                            onClick={() => setShowVolumeSlider((v) => !v)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                setShowVolumeSlider((v) => !v);
+                              }
+                            }}
+                          >
+                            {volume === 0 ? <VolumeX className="h-5 w-5 text-white" /> : <Volume2 className="h-5 w-5 text-white" />}
+                          </div>
+                          {showVolumeSlider && (
+                            <div
+                              ref={volumeSliderRef}
+                              className="absolute left-1/2 -translate-x-1/2 bottom-12 z-50 bg-black/60 px-2 py-1 rounded flex items-center shadow-lg"
+                              style={{ minWidth: 90, maxWidth: 120 }}
+                            >
+                              <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={volume}
+                                onChange={e => setVolume(Number(e.target.value))}
+                                className="w-16 accent-primary h-1"
+                                style={{ verticalAlign: 'middle', marginRight: 4 }}
+                              />
+                              <span className="text-xs text-white opacity-70" style={{ minWidth: 16, textAlign: 'right' }}>{volume}</span>
+                            </div>
+                          )}
+                        </div>
 
                         {/* Playback Speed Dropdown */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="text-white hover:bg-white/20 text-xs">
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              className="text-white hover:bg-white/20 text-xs px-2 py-1 rounded cursor-pointer"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  setSpeedMenuOpen((v) => !v);
+                                }
+                              }}
+                            >
                               {playbackRate}x
-                            </Button>
+                            </div>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start" className="w-16">
                             {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
@@ -1438,24 +1673,34 @@ useEffect(() => {
 
                       <div className="flex items-center gap-2">
                         {/* Video Info Button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-white hover:bg-white/20"
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className="text-white hover:bg-white/20 p-2 rounded cursor-pointer"
                           onClick={() => setVideoInfoOpen(true)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              setVideoInfoOpen(true);
+                            }
+                          }}
                         >
                           <Info className="h-5 w-5" />
-                        </Button>
+                        </div>
 
                         {/* Fullscreen Button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-white hover:bg-white/20"
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className="text-white hover:bg-white/20 p-2 rounded cursor-pointer"
                           onClick={toggleFullscreen}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              toggleFullscreen();
+                            }
+                          }}
                         >
                           {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
-                        </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1754,6 +1999,26 @@ useEffect(() => {
               className="bg-primary hover:bg-primary/90"
             >
               {submittingVideoFeedback ? "Submitting..." : "Submit Review"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Resume Dialog */}
+      <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Resume Video?</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p>You were watching this video at {formatTime(lastPosition)}. Would you like to resume from where you left off?</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleStartFromBeginning}>
+              Start from Beginning
+            </Button>
+            <Button onClick={handleResume}>
+              Resume from {formatTime(lastPosition)}
             </Button>
           </DialogFooter>
         </DialogContent>

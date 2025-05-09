@@ -3,7 +3,8 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
-import { PanelLeft } from "lucide-react"
+import { PanelLeft, User, List, Home, Info, Phone } from "lucide-react"
+import Link from "next/link"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -162,6 +163,10 @@ const Sidebar = React.forwardRef<
     side?: "left" | "right"
     variant?: "sidebar" | "floating" | "inset"
     collapsible?: "offcanvas" | "icon" | "none"
+    selectedVideos?: string[]
+    videoList?: { id: string; title: string }[]
+    onUserProfileClick?: () => void
+    onShowPlaylistModal?: () => void
   }
 >(
   (
@@ -169,6 +174,10 @@ const Sidebar = React.forwardRef<
       side = "left",
       variant = "sidebar",
       collapsible = "offcanvas",
+      selectedVideos,
+      videoList,
+      onUserProfileClick,
+      onShowPlaylistModal,
       className,
       children,
       ...props
@@ -206,7 +215,36 @@ const Sidebar = React.forwardRef<
             }
             side={side}
           >
-            <div className="flex h-full w-full flex-col">{children}</div>
+            <div className="flex h-full w-full flex-col">
+              <div className="flex flex-col gap-2 p-4">
+                <Link href="https://eoxs.com" target="_blank" passHref legacyBehavior>
+                  <Button asChild variant="ghost" size="lg" className="justify-start w-full">
+                    <a><Home className="w-5 h-5" /><span>Home</span></a>
+                  </Button>
+                </Link>
+                <Link href="/profile" passHref legacyBehavior>
+                  <Button asChild variant="ghost" size="lg" className="justify-start w-full">
+                    <a><User className="w-5 h-5" /><span>User Profile</span></a>
+                  </Button>
+                </Link>
+                <Link href="/playlist" passHref legacyBehavior>
+                  <Button asChild variant="ghost" size="lg" className="justify-start w-full">
+                    <a><List className="w-5 h-5" /><span>My Playlist</span></a>
+                  </Button>
+                </Link>
+                <Link href="/about" passHref legacyBehavior>
+                  <Button asChild variant="ghost" size="lg" className="justify-start w-full">
+                    <a><Info className="w-5 h-5" /><span>About DemoXplore</span></a>
+                  </Button>
+                </Link>
+                <Link href="https://eoxs.com/contact" target="_blank" passHref legacyBehavior>
+                  <Button asChild variant="ghost" size="lg" className="justify-start w-full">
+                    <a><Phone className="w-5 h-5" /><span>Contact</span></a>
+                  </Button>
+                </Link>
+              </div>
+              <Separator className="bg-green-800" />
+            </div>
           </SheetContent>
         </Sheet>
       )
@@ -234,11 +272,12 @@ const Sidebar = React.forwardRef<
         />
         <div
           className={cn(
-            "duration-200 fixed inset-y-0 z-10 hidden h-svh w-[--sidebar-width] transition-[left,right,width] ease-linear md:flex",
+            "duration-200 fixed left-0 z-10 hidden md:flex w-[--sidebar-width] transition-[left,right,width] ease-linear",
+            "top-14",
+            "h-[calc(100vh-3.5rem)]",
             side === "left"
-              ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
+              ? "group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
               : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
-            // Adjust the padding for floating and inset variants.
             variant === "floating" || variant === "inset"
               ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)]"
               : "group-data-[collapsible=icon]:w-[--sidebar-width-icon] group-data-[side=left]:border-r group-data-[side=right]:border-l",
@@ -248,8 +287,36 @@ const Sidebar = React.forwardRef<
         >
           <div
             data-sidebar="sidebar"
-            className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
+            className="flex h-full w-full flex-col bg-green-600 text-white"
           >
+            <div className="flex flex-col gap-2 p-4">
+              <Link href="https://eoxs.com" target="_blank" passHref legacyBehavior>
+                <Button asChild variant="ghost" size="lg" className="justify-start w-full">
+                  <a><Home className="w-5 h-5" /><span>Home</span></a>
+                </Button>
+              </Link>
+              <Link href="/profile" passHref legacyBehavior>
+                <Button asChild variant="ghost" size="lg" className="justify-start w-full">
+                  <a><User className="w-5 h-5" /><span>User Profile</span></a>
+                </Button>
+              </Link>
+              <Link href="/playlist" passHref legacyBehavior>
+                <Button asChild variant="ghost" size="lg" className="justify-start w-full">
+                  <a><List className="w-5 h-5" /><span>My Playlist</span></a>
+                </Button>
+              </Link>
+              <Link href="/about" passHref legacyBehavior>
+                <Button asChild variant="ghost" size="lg" className="justify-start w-full">
+                  <a><Info className="w-5 h-5" /><span>About DemoXplore</span></a>
+                </Button>
+              </Link>
+              <Link href="https://eoxs.com/contact" target="_blank" passHref legacyBehavior>
+                <Button asChild variant="ghost" size="lg" className="justify-start w-full">
+                  <a><Phone className="w-5 h-5" /><span>Contact</span></a>
+                </Button>
+              </Link>
+            </div>
+            <Separator className="bg-green-800" />
             {children}
           </div>
         </div>
@@ -300,8 +367,7 @@ const SidebarRail = React.forwardRef<
       onClick={toggleSidebar}
       title="Toggle Sidebar"
       className={cn(
-        "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border group-data-[side=left]:-right-4 group-data-[side=right]:left-0 sm:flex",
-        "[[data-side=left]_&]:cursor-w-resize [[data-side=right]_&]:cursor-e-resize",
+        "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border group-data-[side=left]_&:cursor-w-resize group-data-[side=right]_&:cursor-e-resize",
         "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
         "group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full group-data-[collapsible=offcanvas]:hover:bg-sidebar",
         "[[data-side=left][data-collapsible=offcanvas]_&]:-right-2",
