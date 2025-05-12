@@ -76,10 +76,7 @@ export default function DemoXplorePage() {
                 className="h-20 w-auto"
               />
             </div>
-            <p className="text-xl max-w-3xl mx-auto text-gray-700">
-              DemoXplore is an innovative platform designed by EOXS to offer steel industry professionals a seamless,
-              self-service experience to explore EOXS's software features.
-            </p>
+           
           </div>
         </section>
 
