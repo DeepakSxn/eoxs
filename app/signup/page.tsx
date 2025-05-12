@@ -77,6 +77,8 @@ export default function SignUp() {
     // Collect all validation errors
     const errors = []
 
+    console.log("Phone number value:", phoneNumber);
+
     if (!name) {
       errors.push("Name is required")
     }
@@ -103,7 +105,7 @@ export default function SignUp() {
     
     if (!phoneNumber) {
       errors.push("Phone number is required")
-    } else if (!/^\\d{6,15}$/.test(phoneNumber)) {
+    } else if (!/^\d{6,15}$/.test(phoneNumber)) {
       errors.push("Phone number must be digits only (6-15 digits)")
     }
     
