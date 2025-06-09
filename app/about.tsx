@@ -8,13 +8,7 @@ export default function DemoXplorePage() {
       <header className="sticky top-0 z-10 bg-white border-b border-gray-200">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center">
-            <Image
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/light-LCH7O6uquhczWMEBrRTQ5DNpWFHYqu.webp"
-              alt="EOXS Logo"
-              width={120}
-              height={40}
-              className="h-10 w-auto"
-            />
+            <img src="light.webp" height={120} width={80} alt="EOXS Logo" />
           </div>
           <nav className="hidden md:flex space-x-8">
             <Link href="#" className="text-black hover:text-green-600 font-medium">
@@ -60,13 +54,7 @@ export default function DemoXplorePage() {
           <div className="container mx-auto px-4 text-center">
             <h1 className="text-5xl md:text-6xl font-bold mb-8">About DemoXplore</h1>
             <div className="flex justify-center mb-12">
-              <Image
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-x3hD3z2XAUzxIZD8rWGN8hjplBX0sp.png"
-                alt="DemoXplore Logo"
-                width={300}
-                height={60}
-                className="h-12 w-auto"
-              />
+              <img src="Component 1m.png" alt="DemoXplore Logo" height={360} width={200} />
             </div>
 
           </div>

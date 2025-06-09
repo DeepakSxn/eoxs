@@ -82,7 +82,7 @@ export default function AdminLogin() {
             <Link href="https://eoxs.com/" className="text-base font-medium">
               Home
             </Link>
-            <Link href="https://eoxs.com/about" className="text-base font-medium">
+            <Link href="/about" className="text-base font-medium">
               About
             </Link>
             <Link href="https://eoxs.com/contact" className="text-base font-medium">
