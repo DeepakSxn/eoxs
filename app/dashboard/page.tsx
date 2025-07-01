@@ -281,7 +281,7 @@ export default function Dashboard() {
 
       // Filter out General and Miscellaneous videos for dashboard display only
       const filteredForDisplay = videosWithWatchStatus.filter(
-        (video) => video.category !== "Company Introduction" && video.category !== "Miscellaneous",
+        (video) => video.category !== "Company Introduction" && video.category !== "Miscellaneous"
       )
 
       setFilteredVideos(filteredForDisplay)
@@ -302,7 +302,7 @@ export default function Dashboard() {
     const videosByCategory = filteredVideos.reduce(
       (acc, video) => {
         // Exclude General and Miscellaneous categories
-        if (video.category === "Company Introduction" || video.category === "Miscellaneous") {
+        if (video.category === "Company Introduction" || video.category === "AI tools"|| video.category === "Miscellaneous") {
           return acc
         }
         const category = video.category || "Uncategorized"
@@ -399,6 +399,7 @@ export default function Dashboard() {
       const selectedVideoObjects = videos.filter((video) => selectedVideos.includes(video.id))
       const generalVideos = videos.filter((video) => video.category === "Company Introduction")
       const miscVideos = videos.filter((video) => video.category === "Miscellaneous")
+      const AiTool = videos.filter((video) => video.category === "AI tools")
 
       // Query Firestore for all completed videos by this user
       const watchHistoryQuery = query(
@@ -421,6 +422,7 @@ export default function Dashboard() {
       selectedVideoObjects.forEach((v) => combinedVideoIds.add(v.id))
       generalVideos.forEach((v) => combinedVideoIds.add(v.id))
       miscVideos.forEach((v) => combinedVideoIds.add(v.id))
+      AiTool.forEach((v) => combinedVideoIds.add(v.id))
 
       // Helper to get canonical order of all videos
       const getOrderedVideos = () => {
@@ -454,6 +456,10 @@ export default function Dashboard() {
         })
         // 3. Miscellaneous at the end
         miscVideos.forEach((v) => {
+          if (combinedVideoIds.has(v.id) && !ordered.some((o) => o.id === v.id)) ordered.push(v)
+        })
+        // 4. AI tools at the end
+        AiTool.forEach((v) => {
           if (combinedVideoIds.has(v.id) && !ordered.some((o) => o.id === v.id)) ordered.push(v)
         })
         return ordered

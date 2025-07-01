@@ -152,6 +152,9 @@ export default function VideoPlayerPage() {
       if (currentUser) {
         setUser(currentUser)
 
+        // Debug: Check all categories in database
+        await debugCategories()
+
         // Fetch last watched video if no specific videoId is provided
         if (!videoId) {
           const lastWatched = await fetchLastWatchedVideo(currentUser.uid)
@@ -417,7 +420,41 @@ export default function VideoPlayerPage() {
     }
   }
 
-  const organizeIntoModules = (videos: Video[]) => {
+  // Debug function to check all available categories
+  const debugCategories = async () => {
+    if (!user) return
+
+    try {
+      const videosCollection = collection(db, "videos")
+      const videoSnapshot = await getDocs(videosCollection)
+      
+      const categories = new Set<string>()
+      videoSnapshot.docs.forEach((doc) => {
+        const category = doc.data().category
+        if (category) {
+          categories.add(category)
+        }
+      })
+      
+      console.log("All available categories in database:", Array.from(categories))
+      
+      // Check for AI tools specifically
+      const aiToolsVideos = videoSnapshot.docs.filter((doc) => {
+        const category = doc.data().category
+        return category && (category.toLowerCase().includes('ai') || category.toLowerCase().includes('artificial'))
+      })
+      
+      console.log("Videos with AI-related categories:", aiToolsVideos.map(doc => ({
+        id: doc.id,
+        title: doc.data().title,
+        category: doc.data().category
+      })))
+    } catch (error) {
+      console.error("Error debugging categories:", error)
+    }
+  }
+
+  const organizeIntoModules = async (videos: Video[]) => {
     if (!videos || !Array.isArray(videos) || videos.length === 0) return
 
     // Create modules array
@@ -436,6 +473,11 @@ export default function VideoPlayerPage() {
       {} as Record<string, Video[]>,
     )
 
+    // Debug: Log all categories found
+    console.log("Available categories:", Object.keys(videosByCategory))
+    console.log("AI tools videos:", videosByCategory["AI tools"] || [])
+    console.log("Total videos in playlist:", videos.length)
+
     // 1. Always add Company Introduction module first
     moduleArray.push({
       name: "Company Introduction",
@@ -444,6 +486,7 @@ export default function VideoPlayerPage() {
     })
 
     // 2. Add user profession modules
+    console.log("User professions:", userProfessions)
     userProfessions.forEach((profession) => {
       if (videosByCategory[profession]) {
         moduleArray.push({
@@ -451,12 +494,13 @@ export default function VideoPlayerPage() {
           category: profession,
           videos: videosByCategory[profession],
         })
+        console.log("Added profession module:", profession)
       }
     })
 
-    // 3. Add other categories as modules (except General and Miscellaneous)
+    // 3. Add other categories as modules (except Company Introduction, Miscellaneous, and AI tools)
     Object.entries(videosByCategory).forEach(([category, categoryVideos]) => {
-      if (category !== "Company Introduction" && category !== "Miscellaneous") {
+      if (category !== "Company Introduction" && category !== "Miscellaneous" && category !== "AI tools") {
         moduleArray.push({
           name: category,
           category,
@@ -465,12 +509,33 @@ export default function VideoPlayerPage() {
       }
     })
 
-    // 4. Always add Miscellaneous module last
+    // 4. Always add Miscellaneous module before AI tools
     moduleArray.push({
       name: "Miscellaneous",
       category: "Miscellaneous",
       videos: videosByCategory["Miscellaneous"] || [],
     })
+
+    // 5. Always add AI tools module last - check for various AI-related categories
+    const aiToolsVideos = videosByCategory["AI tools"] || 
+                         videosByCategory["AI Tools"] || 
+                         videosByCategory["ai tools"] ||
+                         videosByCategory["Artificial Intelligence"] ||
+                         videosByCategory["artificial intelligence"] ||
+                         []
+    
+    // Always add AI tools module for testing, even if empty
+    moduleArray.push({
+      name: "AI tools",
+      category: "AI tools",
+      videos: aiToolsVideos,
+    })
+    
+    if (aiToolsVideos.length > 0) {
+      console.log("AI tools module created with", aiToolsVideos.length, "videos")
+    } else {
+      console.log("AI tools module created with 0 videos (for testing)")
+    }
 
     setModules(moduleArray)
 
@@ -502,6 +567,10 @@ export default function VideoPlayerPage() {
             }
 
             setPlaylist(playlistData)
+
+            // Debug: Log playlist data
+            console.log("Playlist data:", playlistData)
+            console.log("Videos in playlist:", playlistData.videos)
 
             // Organize videos into modules (now async)
             await organizeIntoModules(playlistData.videos)
@@ -535,6 +604,10 @@ export default function VideoPlayerPage() {
         }
 
         setPlaylist(playlistData)
+
+        // Debug: Log playlist data
+        console.log("Playlist data:", playlistData)
+        console.log("Videos in playlist:", playlistData.videos)
 
         // Organize videos into modules (now async)
         await organizeIntoModules(playlistData.videos)
