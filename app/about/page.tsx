@@ -60,11 +60,24 @@ export default function DemoXplorePage() {
         {/* Hero Section */}
         <section className="py-16 md:py-24 bg-white">
           <div className="container mx-auto px-4 text-center">
+            {/* Embedded YouTube Video */}
             <div className="flex justify-center items-center mb-8 gap-4">
-             
+              <div className="w-full max-w-2xl mx-auto mb-8">
+                <div className="relative" style={{ paddingBottom: '56.25%', height: 0 }}>
+                  <iframe
+                    src="https://www.youtube.com/embed/Rk-GmLzqa3A"
+                    title="DemoXplore Guide"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    className="absolute top-0 left-0 w-full h-full rounded-lg shadow-lg"
+                  ></iframe>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-center items-center mb-8 gap-4">
               <img src="Component 1m.png" alt="DemoXplore Logo" height={360} width={200} />
             </div>
-           
           </div>
         </section>
 
