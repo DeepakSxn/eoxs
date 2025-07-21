@@ -139,6 +139,46 @@ export default function VideoPlayerPage() {
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [lastPosition, setLastPosition] = useState(0);
 
+  // Initialize volume and mute state from localStorage
+  useEffect(() => {
+    const savedVolume = localStorage.getItem("videoPlayerVolume")
+    const savedMuted = localStorage.getItem("videoPlayerMuted")
+    if (savedVolume !== null) {
+      setVolume(Number(savedVolume))
+    }
+    if (savedMuted !== null) {
+      setIsMuted(savedMuted === "true")
+    }
+  }, [])
+
+  // Persist volume to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem("videoPlayerVolume", String(volume))
+  }, [volume])
+
+  // Persist mute state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem("videoPlayerMuted", String(isMuted))
+  }, [isMuted])
+
+  // When volume or mute changes, update the video element
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.volume = volume / 100
+      videoRef.current.muted = isMuted
+    }
+  }, [volume, isMuted])
+
+  // When a new video loads, apply the persisted volume/mute state
+  useEffect(() => {
+    if (videoRef.current) {
+      const savedVolume = localStorage.getItem("videoPlayerVolume")
+      const savedMuted = localStorage.getItem("videoPlayerMuted")
+      videoRef.current.volume = savedVolume !== null ? Number(savedVolume) / 100 : volume / 100
+      videoRef.current.muted = savedMuted !== null ? savedMuted === "true" : isMuted
+    }
+  }, [currentVideo])
+
   // 5-second rewind handler
   const handleRewind5Seconds = () => {
     if (videoRef.current) {
@@ -1281,8 +1321,13 @@ export default function VideoPlayerPage() {
 
   const toggleMute = () => {
     if (videoRef.current) {
-      videoRef.current.muted = !videoRef.current.muted
-      setIsMuted(!isMuted)
+      const newMuted = !videoRef.current.muted
+      videoRef.current.muted = newMuted
+      setIsMuted(newMuted)
+      // If unmuting and volume is 0, set to a default value (e.g., 20)
+      if (!newMuted && volume === 0) {
+        setVolume(20)
+      }
     }
   }
 
@@ -1457,13 +1502,6 @@ export default function VideoPlayerPage() {
 
     keysToRemove.forEach((key) => sessionStorage.removeItem(key))
   }
-
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.volume = volume / 100
-      setIsMuted(volume === 0)
-    }
-  }, [volume])
 
   // Hide the slider when clicking outside
   useEffect(() => {
@@ -1700,7 +1738,12 @@ export default function VideoPlayerPage() {
                                 min="0"
                                 max="100"
                                 value={volume}
-                                onChange={e => setVolume(Number(e.target.value))}
+                                onChange={e => {
+                                  const newVolume = Number(e.target.value)
+                                  setVolume(newVolume)
+                                  if (newVolume > 0) setIsMuted(false)
+                                  else setIsMuted(true)
+                                }}
                                 className="w-16 accent-primary h-1"
                                 style={{ verticalAlign: 'middle', marginRight: 4 }}
                               />

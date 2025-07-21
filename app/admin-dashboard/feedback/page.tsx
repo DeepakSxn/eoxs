@@ -23,6 +23,7 @@ interface FeedbackItem {
   type: "video_completion" | "playlist_creation" | "video_specific"
   createdAt: any
   rating?: number
+  companyName?: string // <-- add companyName
 }
 
 export default function FeedbackPage() {
@@ -33,6 +34,10 @@ export default function FeedbackPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [filterVideo, setFilterVideo] = useState<string>("all")
   const [uniqueVideos, setUniqueVideos] = useState<{ id: string; title: string }[]>([])
+  const [uniqueCompanies, setUniqueCompanies] = useState<string[]>([])
+  const [filterCompany, setFilterCompany] = useState<string>("all")
+  const [uniqueUsers, setUniqueUsers] = useState<{ id: string; name: string; email: string }[]>([])
+  const [filterUser, setFilterUser] = useState<string>("all")
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -58,6 +63,18 @@ export default function FeedbackPage() {
 
       const recommendationsQuery = query(collection(db, "recommendations"), orderBy("createdAt", "desc"))
 
+      // Fetch all users for company name and user name mapping
+      const usersSnapshot = await getDocs(collection(db, "users"))
+      const userMap = new Map()
+      const userNameEmailMap = new Map<string, { name: string; email: string }>()
+      usersSnapshot.docs.forEach(doc => {
+        const data = doc.data()
+        userMap.set(data.userId, data.companyName || "Unknown Company")
+        if (data.userId && (data.name || data.email)) {
+          userNameEmailMap.set(data.userId, { name: data.name || "", email: data.email || "" })
+        }
+      })
+
       const [feedbackDocs, videoFeedbackDocs, recommendationDocs] = await Promise.all([
         getDocs(feedbackQuery),
         getDocs(videoFeedbackQuery),
@@ -66,33 +83,33 @@ export default function FeedbackPage() {
 
       // Process completion feedback
       const completionFeedback: FeedbackItem[] = feedbackDocs.docs.map(
-        (doc) =>
-          ({
-            id: doc.id,
-            ...doc.data(),
-            type: "video_completion",
-          }) as FeedbackItem,
+        (doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          type: "video_completion",
+          companyName: doc.data().companyName || userMap.get(doc.data().userId) || "Unknown Company",
+        }) as FeedbackItem,
       )
 
       // Process video-specific feedback
       const videoFeedback: FeedbackItem[] = videoFeedbackDocs.docs.map(
-        (doc) =>
-          ({
-            id: doc.id,
-            ...doc.data(),
-            type: "video_specific",
-            rating: doc.data().rating || 0,
-          }) as FeedbackItem,
+        (doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          type: "video_specific",
+          rating: doc.data().rating || 0,
+          companyName: doc.data().companyName || userMap.get(doc.data().userId) || "Unknown Company",
+        }) as FeedbackItem,
       )
 
       // Process recommendations
       const recommendations: FeedbackItem[] = recommendationDocs.docs.map(
-        (doc) =>
-          ({
-            id: doc.id,
-            ...doc.data(),
-            type: "playlist_creation",
-          }) as FeedbackItem,
+        (doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          type: "playlist_creation",
+          companyName: doc.data().companyName || userMap.get(doc.data().userId) || "Unknown Company",
+        }) as FeedbackItem,
       )
 
       // Combine completion feedback and recommendations
@@ -110,6 +127,32 @@ export default function FeedbackPage() {
       })
 
       setUniqueVideos(Array.from(videos.entries()).map(([id, title]) => ({ id, title })))
+
+      // Extract unique companies for filtering (case-insensitive, preserve display casing)
+      const companiesMap = new Map<string, string>()
+      ;[...completionFeedback, ...videoFeedback, ...recommendations].forEach(item => {
+        if (item.companyName) {
+          const key = item.companyName.trim().toLowerCase()
+          if (!companiesMap.has(key)) {
+            companiesMap.set(key, item.companyName.trim())
+          }
+        }
+      })
+      setUniqueCompanies(Array.from(companiesMap.values()))
+
+      // Extract unique users for filtering (use name from users collection, fallback to email)
+      const usersMap = new Map<string, { name: string; email: string }>()
+      ;[...completionFeedback, ...videoFeedback, ...recommendations].forEach(item => {
+        if (item.userId) {
+          const userInfo = userNameEmailMap.get(item.userId)
+          if (userInfo && !usersMap.has(item.userId)) {
+            usersMap.set(item.userId, { name: userInfo.name, email: userInfo.email })
+          } else if (item.userEmail && !usersMap.has(item.userId)) {
+            usersMap.set(item.userId, { name: "", email: item.userEmail })
+          }
+        }
+      })
+      setUniqueUsers(Array.from(usersMap.entries()).map(([id, { name, email }]) => ({ id, name, email })))
     } catch (error) {
       console.error("Error fetching feedback:", error)
     } finally {
@@ -126,8 +169,16 @@ export default function FeedbackPage() {
     setFilterVideo(value)
   }
 
-  const filteredVideoFeedback =
-    filterVideo === "all" ? videoFeedbackItems : videoFeedbackItems.filter((item) => item.videoId === filterVideo)
+  const handleCompanyFilterChange = (value: string) => {
+    setFilterCompany(value)
+  }
+
+  const filteredFeedbackItems = filterCompany === "all"
+    ? feedbackItems
+    : feedbackItems.filter(item => (item.companyName?.trim().toLowerCase() || "") === filterCompany.trim().toLowerCase())
+  const filteredVideoFeedback = filterVideo === "all"
+    ? videoFeedbackItems.filter(item => filterCompany === "all" ? true : (item.companyName?.trim().toLowerCase() || "") === filterCompany.trim().toLowerCase())
+    : videoFeedbackItems.filter(item => item.videoId === filterVideo && (filterCompany === "all" ? true : (item.companyName?.trim().toLowerCase() || "") === filterCompany.trim().toLowerCase()))
 
   if (isLoading) {
     return <div className="flex justify-center items-center min-h-[400px]">Loading...</div>
@@ -140,6 +191,32 @@ export default function FeedbackPage() {
         <p className="text-muted-foreground mt-2">
           View feedback from users after completing videos and specific video reviews.
         </p>
+      </div>
+
+      {/* Filter dropdowns at the top right */}
+      <div className="flex flex-wrap gap-4 items-center mb-4 justify-end">
+        <Select value={filterCompany} onValueChange={handleCompanyFilterChange}>
+          <SelectTrigger className="w-[220px]">
+            <SelectValue placeholder="Filter by company" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Companies</SelectItem>
+            {uniqueCompanies.map((company) => (
+              <SelectItem key={company} value={company}>{company}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterUser} onValueChange={setFilterUser}>
+          <SelectTrigger className="w-[300px]">
+            <SelectValue placeholder="Filter by user" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Users</SelectItem>
+            {uniqueUsers.map((user) => (
+              <SelectItem key={user.id} value={user.id}>{user.name || user.email}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Tabs defaultValue="all" className="w-full">
@@ -171,10 +248,10 @@ export default function FeedbackPage() {
                 </CardHeader>
                 <CardContent className="max-h-[600px] overflow-y-auto">
                   <div className="grid gap-4">
-                    {feedbackItems.length === 0 ? (
+                    {filteredFeedbackItems.length === 0 ? (
                       <p className="text-center text-muted-foreground py-4">No completion feedback available</p>
                     ) : (
-                      feedbackItems
+                      filteredFeedbackItems
                         .filter((item) => item.type === "video_completion")
                         .map((item) => (
                           <Card key={item.id} className="border-l-4 border-l-primary">
@@ -207,21 +284,6 @@ export default function FeedbackPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="max-h-[600px] overflow-y-auto">
-                  <div className="mb-4">
-                    <Select value={filterVideo} onValueChange={handleVideoFilterChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Filter by video" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Videos</SelectItem>
-                        {uniqueVideos.map((video) => (
-                          <SelectItem key={video.id} value={video.id}>
-                            {video.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
                   <div className="grid gap-4">
                     {filteredVideoFeedback.length === 0 ? (
                       <p className="text-center text-muted-foreground py-4">No video reviews available</p>
@@ -268,7 +330,7 @@ export default function FeedbackPage() {
 
         <TabsContent value="completion">
           <div className="grid gap-4">
-            {feedbackItems
+            {filteredFeedbackItems
               .filter((item) => item.type === "video_completion")
               .map((item) => (
                 <Card key={item.id}>
@@ -287,21 +349,6 @@ export default function FeedbackPage() {
         </TabsContent>
 
         <TabsContent value="video">
-          <div className="mb-4">
-            <Select value={filterVideo} onValueChange={handleVideoFilterChange}>
-              <SelectTrigger className="w-[300px]">
-                <SelectValue placeholder="Filter by video" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Videos</SelectItem>
-                {uniqueVideos.map((video) => (
-                  <SelectItem key={video.id} value={video.id}>
-                    {video.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <div className="grid gap-4">
             {filteredVideoFeedback.map((item) => (
               <Card key={item.id}>

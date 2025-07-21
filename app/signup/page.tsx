@@ -28,17 +28,27 @@ export default function SignUp() {
   const [phoneCountryCode, setPhoneCountryCode] = useState("+1")
   const [phoneNumber, setPhoneNumber] = useState("")
 
+  // Update countryCodes array to include flag, country name, and code
   const countryCodes = [
-    { code: "+1", label: "🇺🇸 +1" },
-    { code: "+44", label: "🇬🇧 +44" },
-    { code: "+91", label: "🇮🇳 +91" },
-    { code: "+61", label: "🇦🇺 +61" },
-    { code: "+81", label: "🇯🇵 +81" },
-    { code: "+49", label: "🇩🇪 +49" },
-    { code: "+33", label: "🇫🇷 +33" },
-    { code: "+971", label: "🇦🇪 +971" },
-    { code: "+86", label: "🇨🇳 +86" },
-    { code: "+7", label: "🇷🇺 +7" },
+    { code: "+1", label: "United States (+1)" },
+    { code: "+44", label: "United Kingdom (+44)" },
+    { code: "+91", label: "India (+91)" },
+    { code: "+61", label: "Australia (+61)" },
+    { code: "+81", label: "Japan (+81)" },
+    { code: "+49", label: "Germany (+49)" },
+    { code: "+33", label: "France (+33)" },
+    { code: "+971", label: "UAE (+971)" },
+    { code: "+86", label: "China (+86)" },
+    { code: "+7", label: "Russia (+7)" },
+    { code: "+39", label: "Italy (+39)" },
+    { code: "+34", label: "Spain (+34)" },
+    { code: "+55", label: "Brazil (+55)" },
+    { code: "+27", label: "South Africa (+27)" },
+    { code: "+82", label: "South Korea (+82)" },
+    { code: "+62", label: "Indonesia (+62)" },
+    { code: "+90", label: "Turkey (+90)" },
+    { code: "+234", label: "Nigeria (+234)" },
+    { code: "+63", label: "Philippines (+63)" },
     // Add more as needed
   ]
 
@@ -241,17 +251,16 @@ export default function SignUp() {
             </div>
 
             <div className="flex gap-2">
-              <Input
-                id="phoneCountryCode"
-                type="text"
-                placeholder="+1"
-                value={phoneCountryCode}
-                onChange={e => setPhoneCountryCode(e.target.value.replace(/[^+\d]/g, ""))}
-                required
-                disabled={loading}
-                className="h-12 text-base rounded-md w-24"
-                maxLength={5}
-              />
+              <Select value={phoneCountryCode} onValueChange={setPhoneCountryCode}>
+                <SelectTrigger className="h-12 text-base rounded-md w-28">
+                  <SelectValue placeholder="Code" />
+                </SelectTrigger>
+                <SelectContent>
+                  {countryCodes.map((country) => (
+                    <SelectItem key={country.code} value={country.code}>{country.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Input
                 id="phoneNumber"
                 type="tel"
