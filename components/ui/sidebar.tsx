@@ -19,6 +19,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { CompanyFilter } from "@/app/components/CompanyFilter"
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
@@ -167,6 +168,7 @@ const Sidebar = React.forwardRef<
     videoList?: { id: string; title: string }[]
     onUserProfileClick?: () => void
     onShowPlaylistModal?: () => void
+    onCompanyFilterChange?: (companyId: string | null) => void
   }
 >(
   (
@@ -178,6 +180,7 @@ const Sidebar = React.forwardRef<
       videoList,
       onUserProfileClick,
       onShowPlaylistModal,
+      onCompanyFilterChange,
       className,
       children,
       ...props
@@ -185,6 +188,14 @@ const Sidebar = React.forwardRef<
     ref
   ) => {
     const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+    const [selectedCompany, setSelectedCompany] = React.useState<string | null>(null);
+
+    const handleCompanyFilterChange = (companyId: string | null) => {
+      setSelectedCompany(companyId);
+      if (onCompanyFilterChange) {
+        onCompanyFilterChange(companyId);
+      }
+    };
 
     if (collapsible === "none") {
       return (
@@ -244,6 +255,12 @@ const Sidebar = React.forwardRef<
                 </Link>
               </div>
               <Separator className="bg-green-800" />
+              <div className="mt-2">
+                <CompanyFilter
+                  selectedCompany={selectedCompany}
+                  onFilterChange={handleCompanyFilterChange}
+                />
+              </div>
             </div>
           </SheetContent>
         </Sheet>
@@ -317,6 +334,12 @@ const Sidebar = React.forwardRef<
               </Link>
             </div>
             <Separator className="bg-green-800" />
+            <div className="mt-2">
+              <CompanyFilter
+                selectedCompany={selectedCompany}
+                onFilterChange={handleCompanyFilterChange}
+              />
+            </div>
             {children}
           </div>
         </div>

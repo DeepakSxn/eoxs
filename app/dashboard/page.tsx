@@ -27,6 +27,7 @@ interface Video {
   tags?: string[]
   createdAt: any
   watched?: boolean
+  company?: string
 }
 
 interface Module {
@@ -132,6 +133,7 @@ export default function Dashboard() {
   const [selectedVideos, setSelectedVideos] = useState<string[]>([])
   const [user, setUser] = useState<any>(null)
   const [expandedModules, setExpandedModules] = useState<string[]>([])
+  const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
 
   const router = useRouter()
 
@@ -194,22 +196,34 @@ export default function Dashboard() {
   }, [user]);
 
   useEffect(() => {
-    // Filter videos based on search query
-    if (!searchQuery) {
+    // Filter videos based on search query and company
+    if (!searchQuery && !selectedCompany) {
       setFilteredVideos(videos)
       return
     }
 
-    const lowerCaseQuery = searchQuery.toLowerCase()
-    const filtered = videos.filter(
-      (video) =>
-        video.title.toLowerCase().includes(lowerCaseQuery) ||
-        (video.tags && video.tags.some((tag) => tag.toLowerCase().includes(lowerCaseQuery))) ||
-        (video.description && video.description.toLowerCase().includes(lowerCaseQuery)),
-    )
+    let filtered = videos
+
+    // Apply company filter if selected
+    if (selectedCompany) {
+      filtered = filtered.filter(
+        (video) => video.company === selectedCompany
+      )
+    }
+
+    // Apply search query filter if entered
+    if (searchQuery) {
+      const lowerCaseQuery = searchQuery.toLowerCase()
+      filtered = filtered.filter(
+        (video) =>
+          video.title.toLowerCase().includes(lowerCaseQuery) ||
+          (video.tags && video.tags.some((tag) => tag.toLowerCase().includes(lowerCaseQuery))) ||
+          (video.description && video.description.toLowerCase().includes(lowerCaseQuery))
+      )
+    }
 
     setFilteredVideos(filtered)
-  }, [searchQuery, videos])
+  }, [searchQuery, videos, selectedCompany])
 
   useEffect(() => {
     if (filteredVideos.length > 0) {
@@ -249,17 +263,39 @@ export default function Dashboard() {
         return
       }
 
-      const videoList = videoSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        thumbnail: getSafeUrl(
-          doc.data().publicId
-            ? `https://res.cloudinary.com/dh3bnbq9t/video/upload/${doc.data().publicId}.jpg`
-            : undefined,
-        ),
-        description: doc.data().description || "-",
-        category: doc.data().category || "Uncategorized",
-      })) as unknown as Video[]
+      // Mock company data assignment - in a real app, this would come from your Firestore database
+      const companyMapping: Record<string, string> = {
+        "Sales": "eoxs",
+        "Processing": "steel_inc", 
+        "Inventory": "eoxs",
+        "Purchase": "metal_works",
+        "Finance and Accounting": "acme",
+        "Shipping and Receiving": "metal_works",
+        "CRM": "eoxs",
+        "IT & Security": "acme",
+        "Advanced Analytics & Reporting": "steel_inc",
+        "Master Data Management": "acme",
+        "Contact Management": "eoxs",
+        "QA": "metal_works"
+      }
+
+      const videoList = videoSnapshot.docs.map((doc) => {
+        const data = doc.data();
+        const category = data.category || "Uncategorized";
+        return {
+          id: doc.id,
+          ...data,
+          thumbnail: getSafeUrl(
+            data.publicId
+              ? `https://res.cloudinary.com/dh3bnbq9t/video/upload/${data.publicId}.jpg`
+              : undefined,
+          ),
+          description: data.description || "-",
+          category: category,
+          // Assign company based on category
+          company: companyMapping[category] || "eoxs"
+        };
+      }) as unknown as Video[]
 
       // Fetch watch history to mark watched videos
       const watchHistoryQuery = query(
@@ -559,6 +595,24 @@ export default function Dashboard() {
     localStorage.setItem("selectedVideos", JSON.stringify(selectedVideos));
   }, [selectedVideos]);
 
+  const handleCompanyFilterChange = (companyId: string | null) => {
+    setSelectedCompany(companyId)
+  }
+
+  // Add this function to get the company name from ID
+  const getCompanyName = (companyId: string | null): string => {
+    if (!companyId) return "All Companies";
+    
+    const companyNames: Record<string, string> = {
+      "eoxs": "EOXS",
+      "steel_inc": "Steel Inc.",
+      "metal_works": "Metal Works",
+      "acme": "Acme Corp"
+    };
+    
+    return companyNames[companyId] || companyId;
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -580,11 +634,31 @@ export default function Dashboard() {
           <Sidebar
             selectedVideos={selectedVideos}
             videoList={videos}
+            onCompanyFilterChange={handleCompanyFilterChange}
           />
         </SidebarProvider>
       </aside>
       {/* Main Content */}
       <main className="pt-14 min-h-screen md:ml-64">
+        {/* Display selected company indicator if filtering */}
+        {selectedCompany && (
+          <div className="max-w-5xl mx-auto px-4 pt-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-2 flex items-center justify-between">
+              <span className="text-sm text-blue-700">
+                Filtering by company: <strong>{getCompanyName(selectedCompany)}</strong>
+              </span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setSelectedCompany(null)}
+                className="h-7 text-blue-700 hover:text-blue-800"
+              >
+                Clear filter
+              </Button>
+            </div>
+          </div>
+        )}
+        
         <div className="max-w-5xl mx-auto pb-4 p-0">
           <div className="flex flex-col sm:flex-row justify-between gap-4 sticky top-0 z-20 bg-background pb-2">
             <div className="relative flex-1">

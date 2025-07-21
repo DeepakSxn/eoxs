@@ -28,6 +28,7 @@ import { format } from "date-fns"
 import { Bar, Doughnut } from "react-chartjs-2"
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from "chart.js"
 import { toast } from "@/components/ui/use-toast"
+import { CompanyFilterAdmin } from "../../components/CompanyFilterAdmin"
 
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
@@ -110,6 +111,7 @@ export default function IndividualAnalyticsPage() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const [companySortBy, setCompanySortBy] = useState("userCount")
   const [companySortDirection, setCompanySortDirection] = useState<"asc" | "desc">("desc")
+  const [filterCompany, setFilterCompany] = useState<string | null>(null)
 
   // Define sortUsers and sortCompanies functions before they're used
   const sortUsers = (users: UserAnalytics[], sortField: string, direction: "asc" | "desc") => {
@@ -569,15 +571,40 @@ export default function IndividualAnalyticsPage() {
     }
   }
 
-  // Filter users and companies based on search term
+  // Update the filtered users and companies logic to correctly match the company ID format
   const filteredUsers = users.filter(
-    (user) =>
-      (user.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (user.companyName?.toLowerCase() || "").includes(searchTerm.toLowerCase()),
+    (user) => {
+      // Basic search term filter
+      const matchesSearch = 
+        (user.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (user.companyName?.toLowerCase() || "").includes(searchTerm.toLowerCase());
+      
+      // Company filter - need to normalize company name to match filter format
+      const matchesCompany = !filterCompany || 
+        (user.companyName && user.companyName.toLowerCase().replace(/\s+/g, '_') === filterCompany);
+      
+      return matchesSearch && matchesCompany;
+    }
   )
 
-  const filteredCompanies = companies.filter((company) => company.name.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredCompanies = companies.filter(
+    (company) => {
+      // Basic search term filter
+      const matchesSearch = company.name.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Company filter - use normalized company name
+      const normalizedCompanyName = company.name.toLowerCase().replace(/\s+/g, '_');
+      const matchesCompany = !filterCompany || normalizedCompanyName === filterCompany;
+      
+      return matchesSearch && matchesCompany;
+    }
+  )
+
+  // Handle company filter change
+  const handleCompanyFilterChange = (companyName: string | null) => {
+    setFilterCompany(companyName);
+  }
 
   // Prepare chart data for user details
   const getUserCategoryData = (user: UserAnalytics) => {
@@ -628,40 +655,78 @@ export default function IndividualAnalyticsPage() {
     }
   }
 
+  // Helper function to find company name from ID
+  const getCompanyNameFromId = (companyId: string | null): string => {
+    if (!companyId) return "All Companies";
+    
+    const company = companies.find(c => 
+      c.name.toLowerCase().replace(/\s+/g, '_') === companyId
+    );
+    
+    return company?.name || companyId;
+  }
+
   return (
     <div className="space-y-6">
+      {/* Update the header controls section for better spacing and layout */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Individual Analytics</h1>
 
-        <div className="flex items-center gap-4">
-          <div className="relative">
+        <div className="flex items-center gap-3">
+          <div className="relative w-[240px]">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
               placeholder="Search users or companies..."
-              className="pl-8 w-[250px]"
+              className="pl-8"
               value={searchTerm}
               onChange={handleSearch}
             />
           </div>
 
-          <Select value={dateRange} onValueChange={setDateRange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select time range" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Time</SelectItem>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="week">Last 7 Days</SelectItem>
-              <SelectItem value="month">Last 30 Days</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex-shrink-0">
+            <CompanyFilterAdmin
+              selectedCompany={filterCompany}
+              onFilterChange={handleCompanyFilterChange}
+            />
+          </div>
 
-          <Button variant="outline" onClick={fetchAnalyticsData}>
+          <div className="flex-shrink-0">
+            <Select value={dateRange} onValueChange={setDateRange}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Select time range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Time</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="week">Last 7 Days</SelectItem>
+                <SelectItem value="month">Last 30 Days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button variant="outline" className="flex-shrink-0" onClick={fetchAnalyticsData}>
             Refresh
           </Button>
         </div>
       </div>
+
+      {/* Show active filters if company filter is applied */}
+      {filterCompany && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-2 flex items-center justify-between">
+          <span className="text-sm text-blue-700">
+            Filtering by company: <strong>{getCompanyNameFromId(filterCompany)}</strong>
+          </span>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setFilterCompany(null)}
+            className="h-7 text-blue-700 hover:text-blue-800"
+          >
+            Clear filter
+          </Button>
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
