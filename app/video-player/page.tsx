@@ -1189,6 +1189,18 @@ export default function VideoPlayerPage() {
         }
       }
       
+      // Always set startTime for 'play' event (start time)
+      if (eventType === "play") {
+        eventData.startTime = serverTimestamp();
+      } else if (!querySnapshot.empty && !querySnapshot.docs[0].data().startTime) {
+        // For non-play events, if startTime is missing, set it to now
+        eventData.startTime = serverTimestamp();
+      }
+      // If startTime is not set and this is the first event, set it
+      if (querySnapshot.empty && !eventData.startTime) {
+        eventData.startTime = serverTimestamp();
+      }
+      
       // If document exists, update it
       if (!querySnapshot.empty) {
         const docRef = doc(db, "videoWatchEvents", querySnapshot.docs[0].id);
