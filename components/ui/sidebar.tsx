@@ -19,7 +19,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { CompanyFilter } from "@/app/components/CompanyFilter"
+// Remove import for CompanyFilter
+// import { CompanyFilter } from "@/app/components/CompanyFilter"
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
@@ -255,12 +256,7 @@ const Sidebar = React.forwardRef<
                 </Link>
               </div>
               <Separator className="bg-green-800" />
-              <div className="mt-2">
-                <CompanyFilter
-                  selectedCompany={selectedCompany}
-                  onFilterChange={handleCompanyFilterChange}
-                />
-              </div>
+              {/* Remove CompanyFilter section */}
             </div>
           </SheetContent>
         </Sheet>
@@ -334,12 +330,7 @@ const Sidebar = React.forwardRef<
               </Link>
             </div>
             <Separator className="bg-green-800" />
-            <div className="mt-2">
-              <CompanyFilter
-                selectedCompany={selectedCompany}
-                onFilterChange={handleCompanyFilterChange}
-              />
-            </div>
+            {/* Remove CompanyFilter section */}
             {children}
           </div>
         </div>
