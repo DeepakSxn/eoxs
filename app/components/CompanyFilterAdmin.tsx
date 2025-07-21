@@ -45,10 +45,15 @@ export function CompanyFilterAdmin({ onFilterChange, selectedCompany }: CompanyF
             }
           });
           
-          const companiesList = Array.from(companySet).map(name => ({
-            id: name.toLowerCase().replace(/\s+/g, '_'),
-            name
-          }));
+          // Normalize company names - capitalize all eoxs references
+          const companiesList = Array.from(companySet).map(name => {
+            // Special case for eoxs to make it uppercase
+            const displayName = name.toLowerCase() === 'eoxs' ? 'EOXS' : name;
+            return {
+              id: name.toLowerCase().replace(/\s+/g, '_'),
+              name: displayName
+            };
+          });
           
           // Sort alphabetically
           companiesList.sort((a, b) => a.name.localeCompare(b.name));

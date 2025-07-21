@@ -36,10 +36,15 @@ export function CompanyFilter({ onFilterChange, selectedCompany }: CompanyFilter
         const companiesSnapshot = await getDocs(companiesCollection)
         
         if (!companiesSnapshot.empty) {
-          const companiesList = companiesSnapshot.docs.map(doc => ({
-            id: doc.id,
-            name: doc.data().name || doc.id
-          }))
+          const companiesList = companiesSnapshot.docs.map(doc => {
+            // Ensure eoxs is always displayed as EOXS
+            const name = doc.data().name || doc.id;
+            const displayName = name.toLowerCase() === 'eoxs' ? 'EOXS' : name;
+            return {
+              id: doc.id,
+              name: displayName
+            };
+          });
           setCompanies(companiesList)
         } else {
           // If no companies exist in the database, create a default list
