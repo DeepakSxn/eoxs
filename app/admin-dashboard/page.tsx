@@ -224,8 +224,9 @@ export default function AdminDashboard() {
         categoryMap.set(category, (categoryMap.get(category) || 0) + 1)
 
         // Update daily watch data
-        if (data.watchedAt) {
-          const date = new Date(data.watchedAt.seconds * 1000)
+        const timestamp = data.lastWatchedAt || data.watchedAt || data.firstWatchedAt
+        if (timestamp) {
+          const date = new Date(timestamp.seconds * 1000)
           const dateString = date.toISOString().split("T")[0]
 
           if (dailyMap.has(dateString)) {

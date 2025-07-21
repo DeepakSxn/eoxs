@@ -50,6 +50,7 @@ interface VideoWatchEvent {
   progressPercentage?: number
   progress?: number
   lastWatchedAt?: { seconds: number; nanoseconds: number }
+  firstWatchedAt?: { seconds: number; nanoseconds: number }
 }
 
 interface UserAnalytics {
@@ -74,6 +75,8 @@ interface UserAnalytics {
     completionRate: number
     lastWatched: string
     lastWatchedTimestamp: number
+    startTime?: string
+    endTime?: string
     thumbnailUrl?: string
     publicId?: string
     category?: string
@@ -345,6 +348,40 @@ export default function IndividualAnalyticsPage() {
           const lastWatchedTimestamp =
             mostCompleteEvent.lastWatchedAt?.seconds || mostCompleteEvent.watchedAt?.seconds || 0
 
+          // We need to properly track when a user started watching vs when they finished
+          // First sort events by timestamp to find the earliest and latest events
+          const sortedByTime = [...videoEvents].sort((a, b) => {
+            // Get timestamp from each event, prioritizing the appropriate fields
+            const getTimestamp = (event: VideoWatchEvent) => {
+              // For sorting, use any available timestamp
+              return event.firstWatchedAt?.seconds || 
+                     event.watchedAt?.seconds || 
+                     event.lastWatchedAt?.seconds || 0;
+            };
+            return getTimestamp(a) - getTimestamp(b);
+          });
+          
+          // The earliest event should contain firstWatchedAt if available
+          const firstEvent = sortedByTime[0];
+          // The latest event should have the most recent lastWatchedAt
+          const lastEvent = sortedByTime[sortedByTime.length - 1];
+          
+          // For start time, prioritize firstWatchedAt as it marks when user started watching
+          // First look for any event with firstWatchedAt
+          const eventWithFirstWatched = videoEvents.find(e => e.firstWatchedAt?.seconds);
+          const startTimestamp = eventWithFirstWatched?.firstWatchedAt?.seconds || 
+                              firstEvent.watchedAt?.seconds || 
+                              firstEvent.lastWatchedAt?.seconds || 0;
+                              
+          // For end time, use lastWatchedAt from the most recent event
+          const eventWithLastWatched = videoEvents
+            .filter(e => e.lastWatchedAt?.seconds)
+            .sort((a, b) => (b.lastWatchedAt?.seconds || 0) - (a.lastWatchedAt?.seconds || 0))[0];
+            
+          const endTimestamp = eventWithLastWatched?.lastWatchedAt?.seconds || 
+                            lastEvent.watchedAt?.seconds || 
+                            lastEvent.firstWatchedAt?.seconds || 0;
+          
           // Add to viewed videos
           userAnalytics.viewedVideos.push({
             id: videoId,
@@ -357,6 +394,8 @@ export default function IndividualAnalyticsPage() {
             completionRate: isCompleted
               ? 1
               : (mostCompleteEvent.progressPercentage || mostCompleteEvent.progress || 0) / 100,
+            startTime: formatTimestamp(startTimestamp),
+            endTime: formatTimestamp(endTimestamp),
             lastWatched: formatDate(lastWatchedTimestamp),
             lastWatchedTimestamp: lastWatchedTimestamp,
             category: mostCompleteEvent.category || "Uncategorized",
@@ -507,6 +546,13 @@ export default function IndividualAnalyticsPage() {
     } else {
       return format(date, "MMM d, yyyy")
     }
+  }
+
+  // Format timestamp as actual date and time
+  const formatTimestamp = (seconds: number): string => {
+    if (!seconds) return "Unknown"
+    const date = new Date(seconds * 1000)
+    return format(date, "MMM d, yyyy h:mm a")
   }
 
   const formatTime = (seconds: number): string => {
@@ -1061,6 +1107,8 @@ export default function IndividualAnalyticsPage() {
                           <TableHead>Category</TableHead>
                           <TableHead>Watch Time</TableHead>
                           <TableHead>Completion</TableHead>
+                          <TableHead>Start Time</TableHead>
+                          <TableHead>End Time</TableHead>
                           <TableHead>Last Watched</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1073,6 +1121,8 @@ export default function IndividualAnalyticsPage() {
                               <TableCell>{video.category || "Uncategorized"}</TableCell>
                               <TableCell>{video.watchTime}</TableCell>
                               <TableCell>{video.completion}</TableCell>
+                              <TableCell>{video.startTime || "-"}</TableCell>
+                              <TableCell>{video.endTime || "-"}</TableCell>
                               <TableCell>{video.lastWatched}</TableCell>
                             </TableRow>
                           ))}
