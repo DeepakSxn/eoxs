@@ -52,6 +52,7 @@ interface VideoWatchEvent {
   progress?: number
   lastWatchedAt?: { seconds: number; nanoseconds: number }
   firstWatchedAt?: { seconds: number; nanoseconds: number }
+  startTime?: { seconds: number; nanoseconds: number }
 }
 
 interface UserAnalytics {
@@ -368,21 +369,21 @@ export default function IndividualAnalyticsPage() {
           // The latest event should have the most recent lastWatchedAt
           const lastEvent = sortedByTime[sortedByTime.length - 1];
           
-          // For start time, prioritize firstWatchedAt as it marks when user started watching
-          // First look for any event with firstWatchedAt
+          // For start time, prioritize startTime, then firstWatchedAt, then watchedAt, then lastWatchedAt
+          const eventWithStartTime = videoEvents.find(e => e?.startTime?.seconds);
           const eventWithFirstWatched = videoEvents.find(e => e.firstWatchedAt?.seconds);
-          const startTimestamp = eventWithFirstWatched?.firstWatchedAt?.seconds || 
-                              firstEvent.watchedAt?.seconds || 
-                              firstEvent.lastWatchedAt?.seconds || 0;
-                              
-          // For end time, use lastWatchedAt from the most recent event
+          const startTimestamp = eventWithStartTime?.startTime?.seconds ||
+                                 eventWithFirstWatched?.firstWatchedAt?.seconds ||
+                                 firstEvent.watchedAt?.seconds ||
+                                 firstEvent.lastWatchedAt?.seconds || 0;
+          
+          // For end time, use lastWatchedAt from the most recent event, then watchedAt, then firstWatchedAt
           const eventWithLastWatched = videoEvents
             .filter(e => e.lastWatchedAt?.seconds)
             .sort((a, b) => (b.lastWatchedAt?.seconds || 0) - (a.lastWatchedAt?.seconds || 0))[0];
-            
-          const endTimestamp = eventWithLastWatched?.lastWatchedAt?.seconds || 
-                            lastEvent.watchedAt?.seconds || 
-                            lastEvent.firstWatchedAt?.seconds || 0;
+          const endTimestamp = eventWithLastWatched?.lastWatchedAt?.seconds ||
+                                lastEvent.watchedAt?.seconds ||
+                                lastEvent.firstWatchedAt?.seconds || 0;
           
           // Add to viewed videos
           userAnalytics.viewedVideos.push({

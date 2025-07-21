@@ -1189,17 +1189,14 @@ export default function VideoPlayerPage() {
         }
       }
       
-      // Always set startTime for 'play' event (start time)
+      // Set startTime only on the first play (if not already present)
       if (eventType === "play") {
-        eventData.startTime = serverTimestamp();
-      } else if (!querySnapshot.empty && !querySnapshot.docs[0].data().startTime) {
-        // For non-play events, if startTime is missing, set it to now
-        eventData.startTime = serverTimestamp();
+        if (querySnapshot.empty || !querySnapshot.docs[0].data().startTime) {
+          eventData.startTime = serverTimestamp();
+        }
       }
-      // If startTime is not set and this is the first event, set it
-      if (querySnapshot.empty && !eventData.startTime) {
-        eventData.startTime = serverTimestamp();
-      }
+      // Always update lastWatchedAt to now
+      eventData.lastWatchedAt = serverTimestamp();
       
       // If document exists, update it
       if (!querySnapshot.empty) {
