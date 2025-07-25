@@ -1087,49 +1087,6 @@ export default function VideoPlayerPage() {
     }
   };
   
-  // Add this new function to save video progress
-  const saveVideoProgress = async (currentTime: number) => {
-    if (!user || !currentVideo || !currentVideo.id) return;
-
-    try {
-      console.log('Saving video progress:', { currentTime, videoId: currentVideo.id });
-      const watchEventsRef = collection(db, "videoWatchEvents");
-      const q = query(
-        watchEventsRef,
-        where("userId", "==", user.uid),
-        where("videoId", "==", currentVideo.id)
-      );
-      
-      const querySnapshot = await getDocs(q);
-      
-      const progressData = {
-        lastWatchedAt: serverTimestamp(),
-        lastPosition: currentTime,
-        progress: Math.floor((currentTime / duration) * 100),
-        videoId: currentVideo.id,
-        userId: user.uid,
-        userEmail: user.email || "Unknown User",
-        playlistId: playlist?.id,
-        videoTitle: currentVideo.title,
-        category: currentVideo.category,
-        tags: currentVideo.tags
-      };
-
-      if (!querySnapshot.empty) {
-        // Update existing document
-        const docRef = doc(db, "videoWatchEvents", querySnapshot.docs[0].id);
-        await updateDoc(docRef, progressData);
-        console.log('Updated existing progress document');
-      } else {
-        // Create new document
-        await addDoc(watchEventsRef, progressData);
-        console.log('Created new progress document');
-      }
-    } catch (error) {
-      console.error("Error saving video progress:", error);
-    }
-  };
-  
   const logVideoEvent = async (
     eventType: string,
     isRewatch: boolean,
@@ -1140,63 +1097,63 @@ export default function VideoPlayerPage() {
     if (!currentVideo || !user || !playlist) return;
   
     try {
-      // First, check if a document already exists for this video and user
       const watchEventsRef = collection(db, "videoWatchEvents");
       const q = query(
         watchEventsRef,
         where("userId", "==", user.uid),
         where("videoId", "==", currentVideo.id)
       );
-      
       const querySnapshot = await getDocs(q);
-      
-      // Prepare the event data to update
+      const docExists = !querySnapshot.empty;
+  
+      // Always update these fields
       const eventData: any = {
         lastWatchedAt: serverTimestamp(),
-        eventType, // Keep track of the latest event type
+        eventType,
+        videoTitle: currentVideo.title || "Unknown Video",
+        category: currentVideo.category || "Uncategorized",
+        tags: currentVideo.tags || [],
       };
-      
-      // Add watch duration (accumulate it if document exists)
+  
+      // Handle watch duration - accumulate if document exists
       if (watchDuration) {
-        eventData.watchDuration = watchDuration + 
-          (querySnapshot.empty ? 0 : (querySnapshot.docs[0].data().watchDuration || 0));
+        eventData.watchDuration = watchDuration + (docExists ? (querySnapshot.docs[0].data().watchDuration || 0) : 0);
       }
-      
-      // Update progress if provided and it's higher than existing progress
+  
+      // Handle progress - only update if it's higher than existing
       if (progressPercentage !== undefined) {
         eventData.progress = Math.max(
-          progressPercentage, 
-          querySnapshot.empty ? 0 : (querySnapshot.docs[0].data().progress || 0)
+          progressPercentage,
+          docExists ? (querySnapshot.docs[0].data().progress || 0) : 0
         );
       }
-      
-      // Handle completion status
+  
+      // Handle completion
       if (completed) {
         eventData.completed = true;
         eventData.progress = 100;
+        // DO NOT set endTime here for updates!
       }
-      
-      // Track video metadata
-      eventData.videoTitle = currentVideo.title || "Unknown Video";
-      eventData.category = currentVideo.category || "Uncategorized";
-      eventData.tags = currentVideo.tags || [];
-      
-      // Handle milestones (25%, 50%, 75%, 100%)
+  
+      // Handle milestones - add new ones without duplicating
       if (progressPercentage !== undefined && progressPercentage % 25 === 0) {
-        const currentMilestones = querySnapshot.empty ? [] : (querySnapshot.docs[0].data().milestones || []);
+        const currentMilestones = docExists ? (querySnapshot.docs[0].data().milestones || []) : [];
         if (!currentMilestones.includes(progressPercentage)) {
           eventData.milestones = [...currentMilestones, progressPercentage];
         }
       }
-      
-      // If document exists, update it
-      if (!querySnapshot.empty) {
+  
+      if (docExists) {
         const docRef = doc(db, "videoWatchEvents", querySnapshot.docs[0].id);
+        // Only set endTime if it was not set before and this is the first completion
+        if (completed && !querySnapshot.docs[0].data().endTime) {
+          eventData.endTime = serverTimestamp();
+        }
         await updateDoc(docRef, eventData);
-      } 
-      // If document doesn't exist, create a new one
-      else {
-        await addDoc(watchEventsRef, {
+        console.log(`Updated existing document for video ${currentVideo.id}, event type: ${eventType}`);
+      } else {
+        // Only set startTime, endTime, and other initial fields on creation
+        const newDocData = {
           videoId: currentVideo.id,
           userId: user.uid,
           userEmail: user.email || "Unknown User",
@@ -1205,12 +1162,74 @@ export default function VideoPlayerPage() {
           completed: completed || false,
           isRewatch: isRewatch,
           milestones: progressPercentage && progressPercentage % 25 === 0 ? [progressPercentage] : [],
-          firstWatchedAt: serverTimestamp(),
+          startTime: serverTimestamp(), // Only set on creation
+          endTime: completed ? serverTimestamp() : null, // Only set on creation if completed
+          firstWatchedAt: serverTimestamp(), // Only set on creation
+          watchDuration: watchDuration || 0,
           ...eventData
-        });
+        };
+        await addDoc(watchEventsRef, newDocData);
+        console.log(`Created new document for video ${currentVideo.id}, event type: ${eventType}`);
       }
     } catch (error) {
       console.error("Error logging video event:", error);
+    }
+  };
+  
+  // Also update the saveVideoProgress function to avoid conflicts
+  const saveVideoProgress = async (currentTime: number) => {
+    if (!user || !currentVideo || !currentVideo.id) return;
+  
+    try {
+      console.log('Saving video progress:', { currentTime, videoId: currentVideo.id });
+      const watchEventsRef = collection(db, "videoWatchEvents");
+      const q = query(
+        watchEventsRef,
+        where("userId", "==", user.uid),
+        where("videoId", "==", currentVideo.id)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const docExists = !querySnapshot.empty;
+      
+      const progressData = {
+        lastWatchedAt: serverTimestamp(),
+        lastPosition: currentTime,
+        progress: Math.max(
+          Math.floor((currentTime / duration) * 100),
+          docExists ? (querySnapshot.docs[0].data().progress || 0) : 0
+        ),
+        videoTitle: currentVideo.title,
+        category: currentVideo.category,
+        tags: currentVideo.tags
+      };
+  
+      if (docExists) {
+        // Update existing document - DO NOT touch startTime or endTime
+        const docRef = doc(db, "videoWatchEvents", querySnapshot.docs[0].id);
+        await updateDoc(docRef, progressData);
+        console.log('Updated existing progress document');
+      } else {
+        // Create new document with all initial fields
+        const newDocData = {
+          videoId: currentVideo.id,
+          userId: user.uid,
+          userEmail: user.email || "Unknown User",
+          playlistId: playlist?.id,
+          completed: false,
+          isRewatch: false,
+          milestones: [],
+          startTime: serverTimestamp(), // Only set on creation
+          endTime: null,
+          firstWatchedAt: serverTimestamp(), // Only set on creation
+          watchDuration: 0,
+          ...progressData
+        };
+        await addDoc(watchEventsRef, newDocData);
+        console.log('Created new progress document');
+      }
+    } catch (error) {
+      console.error("Error saving video progress:", error);
     }
   };
   

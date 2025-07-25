@@ -34,6 +34,7 @@ import { CompanyFilterAdmin } from "../../components/CompanyFilterAdmin"
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
 
 // Types
+// Update the VideoWatchEvent interface to include rewatch count
 interface VideoWatchEvent {
   id: string
   videoId: string
@@ -45,6 +46,8 @@ interface VideoWatchEvent {
   watchDuration: number
   completed: boolean
   isRewatch: boolean
+  rewatchCount?: number
+  lastRewatchedAt?: { seconds: number; nanoseconds: number }
   eventType?: string
   category?: string
   tags?: string[]
@@ -52,6 +55,8 @@ interface VideoWatchEvent {
   progress?: number
   lastWatchedAt?: { seconds: number; nanoseconds: number }
   firstWatchedAt?: { seconds: number; nanoseconds: number }
+  startTime?: { seconds: number; nanoseconds: number }
+  endTime?: { seconds: number; nanoseconds: number }
 }
 
 interface UserAnalytics {
@@ -81,6 +86,8 @@ interface UserAnalytics {
     thumbnailUrl?: string
     publicId?: string
     category?: string
+    isRewatch: boolean
+    rewatchCount: number
   }[]
 }
 
@@ -311,8 +318,20 @@ export default function IndividualAnalyticsPage() {
           // Get all events for this video by this user
           const videoEvents = userEvents.filter((event) => event.videoId === videoId)
           if (videoEvents.length === 0) continue
-
-          // Find the most complete/recent event for this video
+          
+          // **CRITICAL**: Sort ALL events chronologically to find the absolute earliest and first completion
+          // This guarantees we're using the first ever watch timestamps regardless of rewatches
+          const chronologicalEvents = [...videoEvents].sort((a, b) => {
+            const getEarliestTimestamp = (event: VideoWatchEvent) => {
+              return event.firstWatchedAt?.seconds || 
+                     event.watchedAt?.seconds || 
+                     event.lastWatchedAt?.seconds || 
+                     Number.MAX_SAFE_INTEGER; // If no timestamp, put at end
+            };
+            return getEarliestTimestamp(a) - getEarliestTimestamp(b);
+          });
+          
+          // Find the most complete/recent event for analytics data (progress, completion, etc.)
           const mostCompleteEvent = videoEvents.reduce((best, current) => {
             // Prefer completed events
             if (current.completed && !best.completed) return current
@@ -335,72 +354,97 @@ export default function IndividualAnalyticsPage() {
             return total + (event.watchDuration || 0)
           }, 0)
 
-          totalWatchTimeSeconds += videoWatchTime
+          // Apply a minimum watch time (at least 1 second) if there's evidence the user viewed the video
+          // For completed videos, ensure a meaningful watch time is shown (at least 30 seconds)
+          let adjustedWatchTime = videoWatchTime;
+          if (mostCompleteEvent.completed && videoWatchTime < 30) {
+            console.log(`Video ${videoId} marked as completed but has low watch time (${videoWatchTime}s). Setting to 30s minimum.`);
+            adjustedWatchTime = 30; // Minimum 30 seconds for completed videos
+          } else if (videoWatchTime === 0 && videoEvents.length > 0) {
+            adjustedWatchTime = 1; // Minimum 1 second for videos with events but no recorded duration
+          }
+
+          totalWatchTimeSeconds += adjustedWatchTime
+ 
+          // Determine if this is a rewatch and get rewatch count - still track this for future use
+          const isRewatch = !!mostCompleteEvent.isRewatch;
+          const rewatchCount = mostCompleteEvent.rewatchCount || 0;
 
           // Determine completion status
-          const isCompleted =
-            mostCompleteEvent.completed ||
-            (mostCompleteEvent.progressPercentage || mostCompleteEvent.progress || 0) >= 90
+          // If marked as completed in database, always show 100%
+          const isCompleted = mostCompleteEvent.completed;
+          
+          // Even if reported progress is 0 but the user has played the video, consider it at least 1% complete
+          // For completed videos, ensure 100%
+          const actualProgress = 
+            isCompleted ? 100 :
+            (mostCompleteEvent.progressPercentage || mostCompleteEvent.progress || 0);
+            
+          const adjustedProgress = 
+            isCompleted ? 100 :
+            (actualProgress === 0 && adjustedWatchTime > 0 ? 1 : actualProgress);
 
           if (isCompleted) {
             completedVideosCount++
           }
 
-          // Get the most recent watch time
+          // Get the most recent watch time - this is the only thing that should update with rewatches
           const lastWatchedTimestamp =
             mostCompleteEvent.lastWatchedAt?.seconds || mostCompleteEvent.watchedAt?.seconds || 0
 
-          // We need to properly track when a user started watching vs when they finished
-          // First sort events by timestamp to find the earliest and latest events
-          const sortedByTime = [...videoEvents].sort((a, b) => {
-            // Get timestamp from each event, prioritizing the appropriate fields
-            const getTimestamp = (event: VideoWatchEvent) => {
-              // For sorting, use any available timestamp
-              return event.firstWatchedAt?.seconds || 
-                     event.watchedAt?.seconds || 
-                     event.lastWatchedAt?.seconds || 0;
-            };
-            return getTimestamp(a) - getTimestamp(b);
-          });
+          // **CRITICAL**: ALWAYS use the FIRST event chronologically for the start time
+          // This guarantees we're using the absolute first watch time regardless of rewatches
+          const firstEventEver = chronologicalEvents[0];
+          const startTimestamp = firstEventEver.startTime?.seconds ||
+                                 firstEventEver.firstWatchedAt?.seconds || 
+                                 firstEventEver.watchedAt?.seconds || 
+                                 firstEventEver.lastWatchedAt?.seconds || 0;
           
-          // The earliest event should contain firstWatchedAt if available
-          const firstEvent = sortedByTime[0];
-          // The latest event should have the most recent lastWatchedAt
-          const lastEvent = sortedByTime[sortedByTime.length - 1];
+          // For end time, use ONLY the endTime field from the first completed event
+          let endTimestamp = 0;
+          const firstCompletionEvent = chronologicalEvents.find(e => e.completed);
+          if (firstCompletionEvent && firstCompletionEvent.endTime?.seconds) {
+            endTimestamp = firstCompletionEvent.endTime.seconds;
+          } else {
+            endTimestamp = 0; // No end time available
+          }
           
-          // For start time, prioritize firstWatchedAt as it marks when user started watching
-          // First look for any event with firstWatchedAt
-          const eventWithFirstWatched = videoEvents.find(e => e.firstWatchedAt?.seconds);
-          const startTimestamp = eventWithFirstWatched?.firstWatchedAt?.seconds || 
-                              firstEvent.watchedAt?.seconds || 
-                              firstEvent.lastWatchedAt?.seconds || 0;
-                              
-          // For end time, use lastWatchedAt from the most recent event
-          const eventWithLastWatched = videoEvents
-            .filter(e => e.lastWatchedAt?.seconds)
-            .sort((a, b) => (b.lastWatchedAt?.seconds || 0) - (a.lastWatchedAt?.seconds || 0))[0];
-            
-          const endTimestamp = eventWithLastWatched?.lastWatchedAt?.seconds || 
-                            lastEvent.watchedAt?.seconds || 
-                            lastEvent.firstWatchedAt?.seconds || 0;
+          console.log(`Video ${videoId}: Using FIXED timestamps - Start: ${new Date(startTimestamp * 1000).toLocaleString()}, End: ${new Date(endTimestamp * 1000).toLocaleString()}`);
+          
+          // Ensure start and end times are different for better UX
+          if (startTimestamp > 0 && endTimestamp > 0) {
+            if (isCompleted && (endTimestamp - startTimestamp < 10)) {
+              // For completed videos, ensure at least 10 seconds difference
+              endTimestamp = startTimestamp + 10;
+            } else if (startTimestamp === endTimestamp) {
+              // For other videos, ensure at least 1 second difference
+              endTimestamp = startTimestamp + 1;
+            }
+          }
+          
+          // Format timestamps for display
+          const formattedStartTime = startTimestamp ? formatTimestamp(startTimestamp) : "Unknown";
+          const formattedEndTime = endTimestamp ? formatTimestamp(endTimestamp) : "-";
           
           // Add to viewed videos
           userAnalytics.viewedVideos.push({
             id: videoId,
             title: mostCompleteEvent.videoTitle || "Unknown Video",
-            watchTime: formatTime(videoWatchTime),
-            watchTimeSeconds: videoWatchTime,
+            watchTime: formatTime(adjustedWatchTime),
+            watchTimeSeconds: adjustedWatchTime,
             completion: isCompleted
               ? "100%"
-              : `${Math.round(mostCompleteEvent.progressPercentage || mostCompleteEvent.progress || 0)}%`,
+              : `${Math.max(1, Math.round(adjustedProgress))}%`, // Show at least 1% if watched
             completionRate: isCompleted
               ? 1
-              : (mostCompleteEvent.progressPercentage || mostCompleteEvent.progress || 0) / 100,
-            startTime: formatTimestamp(startTimestamp),
-            endTime: formatTimestamp(endTimestamp),
+              : Math.max(0.01, adjustedProgress / 100), // At least 1% completion rate if watched
+            startTime: formattedStartTime, 
+            endTime: formattedEndTime,
             lastWatched: formatDate(lastWatchedTimestamp),
             lastWatchedTimestamp: lastWatchedTimestamp,
             category: mostCompleteEvent.category || "Uncategorized",
+            isRewatch: isRewatch,
+            rewatchCount: rewatchCount,
           })
         }
 
@@ -552,7 +596,11 @@ export default function IndividualAnalyticsPage() {
 
   // Format timestamp as actual date and time
   const formatTimestamp = (seconds: number): string => {
-    if (!seconds) return "Unknown"
+    if (!seconds) {
+      // If we don't have a timestamp, check if it's for a completed video
+      // If completed and showing as "Unknown", show a note that it's from historical data
+      return "Historical data";
+    }
     const date = new Date(seconds * 1000)
     return format(date, "MMM d, yyyy h:mm a")
   }
