@@ -148,6 +148,7 @@ export default function SignUp() {
         phoneCountryCode: phoneCountryCode,
         phoneNumber: phoneNumber,
         createdAt: serverTimestamp(),
+        accountCreatedAt: userCredential.user.metadata.creationTime || null,
         role: "user",
       })
 
