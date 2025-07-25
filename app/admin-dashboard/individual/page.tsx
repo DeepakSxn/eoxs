@@ -727,79 +727,85 @@ export default function IndividualAnalyticsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-8">Individual Analytics</h1>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <div className="flex items-center gap-3 flex-wrap">
-            <TabsList>
-              <TabsTrigger value="users" className="flex items-center gap-2">
-                <User className="h-4 w-4" />
-                Users
-              </TabsTrigger>
-              <TabsTrigger value="companies" className="flex items-center gap-2">
-                <Building className="h-4 w-4" />
-                Companies
-              </TabsTrigger>
-            </TabsList>
-            <div className="relative w-[220px]">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Search users or companies..."
-                className="pl-8"
-                value={searchTerm}
-                onChange={handleSearch}
-              />
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            {/* Left section: Tabs only */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <TabsList>
+                <TabsTrigger value="users" className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Users
+                </TabsTrigger>
+                <TabsTrigger value="companies" className="flex items-center gap-2">
+                  <Building className="h-4 w-4" />
+                  Companies
+                </TabsTrigger>
+              </TabsList>
             </div>
-            <div className="flex-shrink-0">
-              <CompanyFilterAdmin
-                selectedCompany={filterCompany}
-                onFilterChange={handleCompanyFilterChange}
-              />
+            {/* Right section: Search, Filters, Actions */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="relative w-[220px]">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search users or companies..."
+                  className="pl-8"
+                  value={searchTerm}
+                  onChange={handleSearch}
+                />
+              </div>
+              <div className="flex-shrink-0">
+                <CompanyFilterAdmin
+                  selectedCompany={filterCompany}
+                  onFilterChange={handleCompanyFilterChange}
+                />
+              </div>
+              <div className="flex-shrink-0">
+                <Select value={dateRange} onValueChange={setDateRange}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Select time range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="week">Last 7 Days</SelectItem>
+                    <SelectItem value="month">Last 30 Days</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button variant="outline" className="flex-shrink-0" onClick={fetchAnalyticsData}>
+                Refresh
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-shrink-0"
+                onClick={() => {
+                  if (filteredUsers.length === 0) {
+                    toast({
+                      title: "No users to export",
+                      description: "There are no users to export to Excel.",
+                      variant: "destructive",
+                    })
+                    return
+                  }
+                  const data = filteredUsers.map((user) => ({
+                    "Name": user.name || "Unknown User",
+                    "Email": user.email,
+                    "Company": user.companyName || "Unknown Company",
+                    "Phone": `${user.phoneCountryCode || ''} ${user.phoneNumber || '-'}`.trim(),
+                    "Videos Watched": user.videoCount,
+                    "Watch Time": user.timeWatched,
+                    "Completion Rate": `${(user.completionRate * 100).toFixed(0)}%`,
+                    "Last Active": user.lastActive,
+                  }))
+                  const ws = XLSX.utils.json_to_sheet(data)
+                  const wb = XLSX.utils.book_new()
+                  XLSX.utils.book_append_sheet(wb, ws, "Users Summary")
+                  XLSX.writeFile(wb, `all-users-summary.xlsx`)
+                }}
+              >
+                Download 
+              </Button>
             </div>
-            <div className="flex-shrink-0">
-              <Select value={dateRange} onValueChange={setDateRange}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="Select time range" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Time</SelectItem>
-                  <SelectItem value="today">Today</SelectItem>
-                  <SelectItem value="week">Last 7 Days</SelectItem>
-                  <SelectItem value="month">Last 30 Days</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button variant="outline" className="flex-shrink-0" onClick={fetchAnalyticsData}>
-              Refresh
-            </Button>
-            <Button
-              variant="outline"
-              className="flex-shrink-0"
-              onClick={() => {
-                if (filteredUsers.length === 0) {
-                  toast({
-                    title: "No users to export",
-                    description: "There are no users to export to Excel.",
-                    variant: "destructive",
-                  })
-                  return
-                }
-                const data = filteredUsers.map((user) => ({
-                  "Name": user.name || "Unknown User",
-                  "Email": user.email,
-                  "Company": user.companyName || "Unknown Company",
-                  "Phone": `${user.phoneCountryCode || ''} ${user.phoneNumber || '-'}`.trim(),
-                  "Videos Watched": user.videoCount,
-                  "Watch Time": user.timeWatched,
-                  "Completion Rate": `${(user.completionRate * 100).toFixed(0)}%`,
-                  "Last Active": user.lastActive,
-                }))
-                const ws = XLSX.utils.json_to_sheet(data)
-                const wb = XLSX.utils.book_new()
-                XLSX.utils.book_append_sheet(wb, ws, "Users Summary")
-                XLSX.writeFile(wb, `all-users-summary.xlsx`)
-              }}
-            >
-              Download 
-            </Button>
           </div>
           <TabsContent value="users" className="mt-6">
                 {loading ? (
