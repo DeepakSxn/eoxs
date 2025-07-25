@@ -141,23 +141,10 @@ export default function Dashboard() {
   const moduleCheckboxRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   useEffect(() => {
-    // Check for navigation flag
-    const navigationOccurred = sessionStorage.getItem("navigationOccurred")
-    if (navigationOccurred === "true") {
-      // Clear the flag
-      sessionStorage.removeItem("navigationOccurred")
-      // Log out the user
-      signOut(auth).then(() => {
-        router.push("/login")
-      })
-      return
-    }
-
     // Check if user is authenticated
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
       if (currentUser) {
         setUser(currentUser)
-
         fetchVideos(currentUser.uid)
       } else {
         // Redirect to login if not authenticated
@@ -165,16 +152,8 @@ export default function Dashboard() {
       }
     })
 
-    // Handle browser navigation
-    const handleBeforeUnload = () => {
-      sessionStorage.setItem("navigationOccurred", "true")
-    }
-
-    window.addEventListener("beforeunload", handleBeforeUnload)
-
     return () => {
       unsubscribe()
-      window.removeEventListener("beforeunload", handleBeforeUnload)
     }
   }, [router])
 
@@ -405,8 +384,8 @@ export default function Dashboard() {
       return indexA - indexB
     })
 
-    // Set all modules as expanded by default
-    setExpandedModules(moduleArray.map((module) => module.category))
+    // Set all modules as collapsed by default
+    setExpandedModules([])
     setModules(moduleArray)
   }
 
@@ -595,23 +574,9 @@ export default function Dashboard() {
     localStorage.setItem("selectedVideos", JSON.stringify(selectedVideos));
   }, [selectedVideos]);
 
-  const handleCompanyFilterChange = (companyId: string | null) => {
-    setSelectedCompany(companyId)
-  }
 
-  // Add this function to get the company name from ID
-  const getCompanyName = (companyId: string | null): string => {
-    if (!companyId) return "All Companies";
-    
-    const companyNames: Record<string, string> = {
-      "eoxs": "EOXS",
-      "steel_inc": "Steel Inc.",
-      "metal_works": "Metal Works",
-      "acme": "Acme Corp"
-    };
-    
-    return companyNames[companyId] || companyId;
-  };
+
+  
 
   return (
     <div className="min-h-screen bg-background">
@@ -631,33 +596,12 @@ export default function Dashboard() {
       {/* Sidebar */}
       <aside className="fixed top-14 left-0 z-40 h-[calc(100vh-3.5rem)] w-64 border-r bg-card">
         <SidebarProvider>
-          <Sidebar
-            selectedVideos={selectedVideos}
-            videoList={videos}
-            onCompanyFilterChange={handleCompanyFilterChange}
-          />
+          <Sidebar/>
         </SidebarProvider>
       </aside>
       {/* Main Content */}
       <main className="pt-14 min-h-screen md:ml-64">
-        {/* Display selected company indicator if filtering */}
-        {selectedCompany && (
-          <div className="max-w-5xl mx-auto px-4 pt-4">
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-2 flex items-center justify-between">
-              <span className="text-sm text-blue-700">
-                Filtering by company: <strong>{getCompanyName(selectedCompany)}</strong>
-              </span>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setSelectedCompany(null)}
-                className="h-7 text-blue-700 hover:text-blue-800"
-              >
-                Clear filter
-              </Button>
-            </div>
-          </div>
-        )}
+       
         
         <div className="max-w-5xl mx-auto pb-4 p-0">
           <div className="flex flex-col sm:flex-row justify-between gap-4 sticky top-0 z-20 bg-background pb-2">
@@ -715,7 +659,7 @@ export default function Dashboard() {
                   />
                   <span className="text-sm">Select All Videos</span>
                 </div>
-                <Accordion type="multiple" value={expandedModules} className="w-full border rounded-md overflow-hidden">
+                <Accordion type="multiple" value={expandedModules} onValueChange={setExpandedModules} className="w-full border rounded-md overflow-hidden">
                   {modules.map((module, moduleIndex) => (
                     <AccordionItem key={moduleIndex} value={module.category} className="border-b last:border-b-0">
                       <AccordionTrigger className="px-4 py-3 hover:no-underline bg-muted/30 hover:bg-muted/50">
