@@ -10,6 +10,8 @@ import { MessageSquare, Lightbulb, Star } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import React from "react"
+import { CommandDialog, CommandInput, CommandList, CommandEmpty, CommandItem } from "@/components/ui/command"
 
 interface FeedbackItem {
   id: string
@@ -173,12 +175,89 @@ export default function FeedbackPage() {
     setFilterCompany(value)
   }
 
-  const filteredFeedbackItems = filterCompany === "all"
-    ? feedbackItems
-    : feedbackItems.filter(item => (item.companyName?.trim().toLowerCase() || "") === filterCompany.trim().toLowerCase())
-  const filteredVideoFeedback = filterVideo === "all"
-    ? videoFeedbackItems.filter(item => filterCompany === "all" ? true : (item.companyName?.trim().toLowerCase() || "") === filterCompany.trim().toLowerCase())
-    : videoFeedbackItems.filter(item => item.videoId === filterVideo && (filterCompany === "all" ? true : (item.companyName?.trim().toLowerCase() || "") === filterCompany.trim().toLowerCase()))
+  // Reusable filter dropdowns
+  function CompanyFilterDropdown({ value, onChange, companies }: { value: string, onChange: (value: string) => void, companies: string[] }) {
+    return (
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="w-[220px]">
+          <SelectValue placeholder="Filter by company" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Companies</SelectItem>
+          {companies.map((company) => (
+            <SelectItem key={company} value={company}>{company}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
+  }
+
+  function UserFilterDropdown({ value, onChange, users }: { value: string, onChange: (value: string) => void, users: { id: string; name: string; email: string }[] }) {
+    const [open, setOpen] = React.useState(false);
+    const selectedUser = users.find(u => u.id === value);
+    return (
+      <>
+        <button
+          type="button"
+          className="w-[300px] h-10 border rounded-md px-3 text-left bg-background flex items-center justify-between"
+          onClick={() => setOpen(true)}
+        >
+          <span className="truncate">
+            {value === "all"
+              ? "All Users"
+              : selectedUser?.name || selectedUser?.email || "Unknown User"}
+          </span>
+          <svg className="ml-2 h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+        </button>
+        <CommandDialog open={open} onOpenChange={setOpen}>
+          <CommandInput placeholder="Search users..." />
+          <CommandList>
+            <CommandItem
+              value="all"
+              onSelect={() => {
+                onChange("all");
+                setOpen(false);
+              }}
+              className={value === "all" ? "bg-accent text-accent-foreground" : ""}
+            >
+              All Users
+            </CommandItem>
+            {users.length === 0 && (
+              <CommandEmpty>No users found</CommandEmpty>
+            )}
+            {users.map((user) => (
+              <CommandItem
+                key={user.id}
+                value={user.name || user.email}
+                onSelect={() => {
+                  onChange(user.id);
+                  setOpen(false);
+                }}
+                className={value === user.id ? "bg-accent text-accent-foreground" : ""}
+              >
+                <div className="flex flex-col">
+                  <span>{user.name || "Unknown User"}</span>
+                  <span className="text-xs text-muted-foreground">{user.email}</span>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </CommandDialog>
+      </>
+    )
+  }
+
+  const filteredFeedbackItems = feedbackItems.filter(item => {
+    const companyMatch = filterCompany === "all" ? true : (item.companyName?.trim().toLowerCase() || "") === filterCompany.trim().toLowerCase();
+    const userMatch = filterUser === "all" ? true : item.userId === filterUser;
+    return companyMatch && userMatch;
+  });
+
+  const filteredVideoFeedback = videoFeedbackItems.filter(item => {
+    const companyMatch = filterCompany === "all" ? true : (item.companyName?.trim().toLowerCase() || "") === filterCompany.trim().toLowerCase();
+    const userMatch = filterUser === "all" ? true : item.userId === filterUser;
+    return companyMatch && userMatch;
+  });
 
   if (isLoading) {
     return <div className="flex justify-center items-center min-h-[400px]">Loading...</div>
@@ -194,46 +273,29 @@ export default function FeedbackPage() {
       </div>
 
       {/* Filter dropdowns at the top right */}
-      <div className="flex flex-wrap gap-4 items-center mb-4 justify-end">
-        <Select value={filterCompany} onValueChange={handleCompanyFilterChange}>
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="Filter by company" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Companies</SelectItem>
-            {uniqueCompanies.map((company) => (
-              <SelectItem key={company} value={company}>{company}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={filterUser} onValueChange={setFilterUser}>
-          <SelectTrigger className="w-[300px]">
-            <SelectValue placeholder="Filter by user" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Users</SelectItem>
-            {uniqueUsers.map((user) => (
-              <SelectItem key={user.id} value={user.id}>{user.name || user.email}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+    
 
       <Tabs defaultValue="all" className="w-full">
-        <TabsList className="mb-6">
-          <TabsTrigger value="all" className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4" />
-            All Feedback
-          </TabsTrigger>
-          <TabsTrigger value="completion" className="flex items-center gap-2">
-            <Lightbulb className="h-4 w-4" />
-            Completion Feedback
-          </TabsTrigger>
-          <TabsTrigger value="video" className="flex items-center gap-2">
-            <Star className="h-4 w-4" />
-            Video Reviews
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between mb-6">
+          <TabsList className="mb-0">
+            <TabsTrigger value="all" className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              All Feedback
+            </TabsTrigger>
+            <TabsTrigger value="completion" className="flex items-center gap-2">
+              <Lightbulb className="h-4 w-4" />
+              Completion Feedback
+            </TabsTrigger>
+            <TabsTrigger value="video" className="flex items-center gap-2">
+              <Star className="h-4 w-4" />
+              Video Reviews
+            </TabsTrigger>
+          </TabsList>
+          <div className="flex flex-wrap gap-4 items-center justify-end">
+            <CompanyFilterDropdown value={filterCompany} onChange={handleCompanyFilterChange} companies={uniqueCompanies} />
+            <UserFilterDropdown value={filterUser} onChange={setFilterUser} users={uniqueUsers} />
+          </div>
+        </div>
 
         <TabsContent value="all">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

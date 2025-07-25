@@ -141,23 +141,10 @@ export default function Dashboard() {
   const moduleCheckboxRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   useEffect(() => {
-    // Check for navigation flag
-    const navigationOccurred = sessionStorage.getItem("navigationOccurred")
-    if (navigationOccurred === "true") {
-      // Clear the flag
-      sessionStorage.removeItem("navigationOccurred")
-      // Log out the user
-      signOut(auth).then(() => {
-        router.push("/login")
-      })
-      return
-    }
-
     // Check if user is authenticated
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
       if (currentUser) {
         setUser(currentUser)
-
         fetchVideos(currentUser.uid)
       } else {
         // Redirect to login if not authenticated
@@ -165,16 +152,8 @@ export default function Dashboard() {
       }
     })
 
-    // Handle browser navigation
-    const handleBeforeUnload = () => {
-      sessionStorage.setItem("navigationOccurred", "true")
-    }
-
-    window.addEventListener("beforeunload", handleBeforeUnload)
-
     return () => {
       unsubscribe()
-      window.removeEventListener("beforeunload", handleBeforeUnload)
     }
   }, [router])
 
@@ -405,8 +384,8 @@ export default function Dashboard() {
       return indexA - indexB
     })
 
-    // Set all modules as expanded by default
-    setExpandedModules(moduleArray.map((module) => module.category))
+    // Set all modules as collapsed by default
+    setExpandedModules([])
     setModules(moduleArray)
   }
 
@@ -680,7 +659,7 @@ export default function Dashboard() {
                   />
                   <span className="text-sm">Select All Videos</span>
                 </div>
-                <Accordion type="multiple" value={expandedModules} className="w-full border rounded-md overflow-hidden">
+                <Accordion type="multiple" value={expandedModules} onValueChange={setExpandedModules} className="w-full border rounded-md overflow-hidden">
                   {modules.map((module, moduleIndex) => (
                     <AccordionItem key={moduleIndex} value={module.category} className="border-b last:border-b-0">
                       <AccordionTrigger className="px-4 py-3 hover:no-underline bg-muted/30 hover:bg-muted/50">

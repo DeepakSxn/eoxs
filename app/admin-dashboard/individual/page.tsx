@@ -29,6 +29,7 @@ import { Bar, Doughnut } from "react-chartjs-2"
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from "chart.js"
 import { toast } from "@/components/ui/use-toast"
 import { CompanyFilterAdmin } from "../../components/CompanyFilterAdmin"
+import * as XLSX from "xlsx"
 
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
@@ -113,6 +114,7 @@ export default function IndividualAnalyticsPage() {
   const [companySortBy, setCompanySortBy] = useState("userCount")
   const [companySortDirection, setCompanySortDirection] = useState<"asc" | "desc">("desc")
   const [filterCompany, setFilterCompany] = useState<string | null>(null)
+  const [filterUser, setFilterUser] = useState<string | null>(null)
 
   // Define sortUsers and sortCompanies functions before they're used
   const sortUsers = (users: UserAnalytics[], sortField: string, direction: "asc" | "desc") => {
@@ -573,6 +575,7 @@ export default function IndividualAnalyticsPage() {
   }
 
   // Update the filtered users and companies logic to correctly match the company ID format
+  const uniqueUsers = users.map(u => ({ id: u.id, name: u.name, email: u.email }))
   const filteredUsers = users.filter(
     (user) => {
       // Basic search term filter
@@ -585,7 +588,10 @@ export default function IndividualAnalyticsPage() {
       const matchesCompany = !filterCompany || 
         (user.companyName && user.companyName.toLowerCase().replace(/\s+/g, '_') === filterCompany);
       
-      return matchesSearch && matchesCompany;
+      // User filter
+      const matchesUser = !filterUser || user.id === filterUser;
+      
+      return matchesSearch && matchesCompany && matchesUser;
     }
   )
 
@@ -669,47 +675,377 @@ export default function IndividualAnalyticsPage() {
 
   return (
     <div className="space-y-6">
+
       {/* Update the header controls section for better spacing and layout */}
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Individual Analytics</h1>
-
-        <div className="flex items-center gap-3">
-          <div className="relative w-[240px]">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search users or companies..."
-              className="pl-8"
-              value={searchTerm}
-              onChange={handleSearch}
-            />
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold mb-8">Individual Analytics</h1>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <div className="flex items-center gap-3 flex-wrap">
+            <TabsList>
+              <TabsTrigger value="users" className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Users
+              </TabsTrigger>
+              <TabsTrigger value="companies" className="flex items-center gap-2">
+                <Building className="h-4 w-4" />
+                Companies
+              </TabsTrigger>
+            </TabsList>
+            <div className="relative w-[220px]">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search users or companies..."
+                className="pl-8"
+                value={searchTerm}
+                onChange={handleSearch}
+              />
+            </div>
+            <div className="flex-shrink-0">
+              <CompanyFilterAdmin
+                selectedCompany={filterCompany}
+                onFilterChange={handleCompanyFilterChange}
+              />
+            </div>
+            <div className="flex-shrink-0">
+              <Select value={dateRange} onValueChange={setDateRange}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Select time range" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">Last 7 Days</SelectItem>
+                  <SelectItem value="month">Last 30 Days</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" className="flex-shrink-0" onClick={fetchAnalyticsData}>
+              Refresh
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-shrink-0"
+              onClick={() => {
+                if (filteredUsers.length === 0) {
+                  toast({
+                    title: "No users to export",
+                    description: "There are no users to export to Excel.",
+                    variant: "destructive",
+                  })
+                  return
+                }
+                const data = filteredUsers.map((user) => ({
+                  "Name": user.name || "Unknown User",
+                  "Email": user.email,
+                  "Company": user.companyName || "Unknown Company",
+                  "Phone": `${user.phoneCountryCode || ''} ${user.phoneNumber || '-'}`.trim(),
+                  "Videos Watched": user.videoCount,
+                  "Watch Time": user.timeWatched,
+                  "Completion Rate": `${(user.completionRate * 100).toFixed(0)}%`,
+                  "Last Active": user.lastActive,
+                }))
+                const ws = XLSX.utils.json_to_sheet(data)
+                const wb = XLSX.utils.book_new()
+                XLSX.utils.book_append_sheet(wb, ws, "Users Summary")
+                XLSX.writeFile(wb, `all-users-summary.xlsx`)
+              }}
+            >
+              Download 
+            </Button>
           </div>
-
-          <div className="flex-shrink-0">
-            <CompanyFilterAdmin
-              selectedCompany={filterCompany}
-              onFilterChange={handleCompanyFilterChange}
-            />
-          </div>
-
-          <div className="flex-shrink-0">
-            <Select value={dateRange} onValueChange={setDateRange}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Select time range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Time</SelectItem>
-                <SelectItem value="today">Today</SelectItem>
-                <SelectItem value="week">Last 7 Days</SelectItem>
-                <SelectItem value="month">Last 30 Days</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Button variant="outline" className="flex-shrink-0" onClick={fetchAnalyticsData}>
-            Refresh
-          </Button>
-        </div>
+          <TabsContent value="users" className="mt-6">
+                {loading ? (
+                  <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                  </div>
+                ) : filteredUsers.length === 0 ? (
+                  <div className="text-center py-12 bg-muted/20 rounded-lg border border-dashed">
+                    <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-lg text-muted-foreground mb-2">No users found</p>
+                    <p className="text-sm text-muted-foreground">
+                      {searchTerm ? `No results matching "${searchTerm}"` : "There are no users to display yet"}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[250px]">
+                            <Button
+                              variant="ghost"
+                              className="flex items-center gap-1 p-0 font-semibold"
+                              onClick={() => handleSort("name")}
+                            >
+                              User
+                              {sortBy === "name" &&
+                                (sortDirection === "asc" ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                ))}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button
+                              variant="ghost"
+                              className="flex items-center gap-1 p-0 font-semibold"
+                              onClick={() => handleSort("company")}
+                            >
+                              Company
+                              {sortBy === "company" &&
+                                (sortDirection === "asc" ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                ))}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button
+                              variant="ghost"
+                              className="flex items-center gap-1 p-0 font-semibold"
+                              onClick={() => handleSort("videoCount")}
+                            >
+                              Videos Watched
+                              {sortBy === "videoCount" &&
+                                (sortDirection === "asc" ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                ))}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button
+                              variant="ghost"
+                              className="flex items-center gap-1 p-0 font-semibold"
+                              onClick={() => handleSort("timeWatched")}
+                            >
+                              Watch Time
+                              {sortBy === "timeWatched" &&
+                                (sortDirection === "asc" ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                ))}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button
+                              variant="ghost"
+                              className="flex items-center gap-1 p-0 font-semibold"
+                              onClick={() => handleSort("completionRate")}
+                            >
+                              Completion Rate
+                              {sortBy === "completionRate" &&
+                                (sortDirection === "asc" ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                ))}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button
+                              variant="ghost"
+                              className="flex items-center gap-1 p-0 font-semibold"
+                              onClick={() => handleSort("lastActive")}
+                            >
+                              Last Active
+                              {sortBy === "lastActive" &&
+                                (sortDirection === "asc" ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                ))}
+                            </Button>
+                          </TableHead>
+                          <TableHead className="w-[100px]">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredUsers.map((user) => (
+                          <TableRow
+                            key={user.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => openUserDetails(user)}
+                          >
+                            <TableCell className="font-medium">
+                              <div className="flex flex-col">
+                                <span>{user.name || "Unknown User"}</span>
+                                <span className="text-xs text-muted-foreground">{user.email}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>{user.companyName || "Unknown Company"}</TableCell>
+                            <TableCell>{user.videoCount}</TableCell>
+                            <TableCell>{user.timeWatched}</TableCell>
+                            <TableCell>{(user.completionRate * 100).toFixed(0)}%</TableCell>
+                            <TableCell>{user.lastActive}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openUserDetails(user)
+                                }}
+                              >
+                                View Details
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </TabsContent>
+              <TabsContent value="companies" className="mt-6">
+                {loading ? (
+                  <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                  </div>
+                ) : filteredCompanies.length === 0 ? (
+                  <div className="text-center py-12 bg-muted/20 rounded-lg border border-dashed">
+                    <Building className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-lg text-muted-foreground mb-2">No companies found</p>
+                    <p className="text-sm text-muted-foreground">
+                      {searchTerm ? `No results matching "${searchTerm}"` : "There are no companies to display yet"}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[250px]">
+                            <Button
+                              variant="ghost"
+                              className="flex items-center gap-1 p-0 font-semibold"
+                              onClick={() => handleCompanySort("name")}
+                            >
+                              Company Name
+                              {companySortBy === "name" &&
+                                (companySortDirection === "asc" ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                ))}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button
+                              variant="ghost"
+                              className="flex items-center gap-1 p-0 font-semibold"
+                              onClick={() => handleCompanySort("userCount")}
+                            >
+                              Users
+                              {companySortBy === "userCount" &&
+                                (companySortDirection === "asc" ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                ))}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button
+                              variant="ghost"
+                              className="flex items-center gap-1 p-0 font-semibold"
+                              onClick={() => handleCompanySort("videoCount")}
+                            >
+                              Videos Watched
+                              {companySortBy === "videoCount" &&
+                                (companySortDirection === "asc" ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                ))}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button
+                              variant="ghost"
+                              className="flex items-center gap-1 p-0 font-semibold"
+                              onClick={() => handleCompanySort("totalWatchTime")}
+                            >
+                              Total Watch Time
+                              {companySortBy === "totalWatchTime" &&
+                                (companySortDirection === "asc" ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                ))}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button
+                              variant="ghost"
+                              className="flex items-center gap-1 p-0 font-semibold"
+                              onClick={() => handleCompanySort("averageCompletionRate")}
+                            >
+                              Avg. Completion
+                              {companySortBy === "averageCompletionRate" &&
+                                (companySortDirection === "asc" ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                ))}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button
+                              variant="ghost"
+                              className="flex items-center gap-1 p-0 font-semibold"
+                              onClick={() => handleCompanySort("lastActive")}
+                            >
+                              Last Active
+                              {companySortBy === "lastActive" &&
+                                (companySortDirection === "asc" ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                ))}
+                            </Button>
+                          </TableHead>
+                          <TableHead className="w-[100px]">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredCompanies.map((company) => (
+                          <TableRow
+                            key={company.name}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => openCompanyDetails(company)}
+                          >
+                            <TableCell className="font-medium">{company.name}</TableCell>
+                            <TableCell>{company.userCount}</TableCell>
+                            <TableCell>{company.videoCount}</TableCell>
+                            <TableCell>{company.totalWatchTime}</TableCell>
+                            <TableCell>{(company.averageCompletionRate * 100).toFixed(0)}%</TableCell>
+                            <TableCell>{company.lastActive}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openCompanyDetails(company)
+                                }}
+                              >
+                                View Details
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
       </div>
 
       {/* Show active filters if company filter is applied */}
@@ -728,312 +1064,6 @@ export default function IndividualAnalyticsPage() {
           </Button>
         </div>
       )}
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="users" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Users
-          </TabsTrigger>
-          <TabsTrigger value="companies" className="flex items-center gap-2">
-            <Building className="h-4 w-4" />
-            Companies
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="users" className="mt-6">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-12 bg-muted/20 rounded-lg border border-dashed">
-              <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-lg text-muted-foreground mb-2">No users found</p>
-              <p className="text-sm text-muted-foreground">
-                {searchTerm ? `No results matching "${searchTerm}"` : "There are no users to display yet"}
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[250px]">
-                      <Button
-                        variant="ghost"
-                        className="flex items-center gap-1 p-0 font-semibold"
-                        onClick={() => handleSort("name")}
-                      >
-                        User
-                        {sortBy === "name" &&
-                          (sortDirection === "asc" ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          ))}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        className="flex items-center gap-1 p-0 font-semibold"
-                        onClick={() => handleSort("company")}
-                      >
-                        Company
-                        {sortBy === "company" &&
-                          (sortDirection === "asc" ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          ))}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        className="flex items-center gap-1 p-0 font-semibold"
-                        onClick={() => handleSort("videoCount")}
-                      >
-                        Videos Watched
-                        {sortBy === "videoCount" &&
-                          (sortDirection === "asc" ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          ))}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        className="flex items-center gap-1 p-0 font-semibold"
-                        onClick={() => handleSort("timeWatched")}
-                      >
-                        Watch Time
-                        {sortBy === "timeWatched" &&
-                          (sortDirection === "asc" ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          ))}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        className="flex items-center gap-1 p-0 font-semibold"
-                        onClick={() => handleSort("completionRate")}
-                      >
-                        Completion Rate
-                        {sortBy === "completionRate" &&
-                          (sortDirection === "asc" ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          ))}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        className="flex items-center gap-1 p-0 font-semibold"
-                        onClick={() => handleSort("lastActive")}
-                      >
-                        Last Active
-                        {sortBy === "lastActive" &&
-                          (sortDirection === "asc" ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          ))}
-                      </Button>
-                    </TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow
-                      key={user.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => openUserDetails(user)}
-                    >
-                      <TableCell className="font-medium">
-                        <div className="flex flex-col">
-                          <span>{user.name || "Unknown User"}</span>
-                          <span className="text-xs text-muted-foreground">{user.email}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{user.companyName || "Unknown Company"}</TableCell>
-                      <TableCell>{user.videoCount}</TableCell>
-                      <TableCell>{user.timeWatched}</TableCell>
-                      <TableCell>{(user.completionRate * 100).toFixed(0)}%</TableCell>
-                      <TableCell>{user.lastActive}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openUserDetails(user)
-                          }}
-                        >
-                          View Details
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="companies" className="mt-6">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-          ) : filteredCompanies.length === 0 ? (
-            <div className="text-center py-12 bg-muted/20 rounded-lg border border-dashed">
-              <Building className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-lg text-muted-foreground mb-2">No companies found</p>
-              <p className="text-sm text-muted-foreground">
-                {searchTerm ? `No results matching "${searchTerm}"` : "There are no companies to display yet"}
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[250px]">
-                      <Button
-                        variant="ghost"
-                        className="flex items-center gap-1 p-0 font-semibold"
-                        onClick={() => handleCompanySort("name")}
-                      >
-                        Company Name
-                        {companySortBy === "name" &&
-                          (companySortDirection === "asc" ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          ))}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        className="flex items-center gap-1 p-0 font-semibold"
-                        onClick={() => handleCompanySort("userCount")}
-                      >
-                        Users
-                        {companySortBy === "userCount" &&
-                          (companySortDirection === "asc" ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          ))}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        className="flex items-center gap-1 p-0 font-semibold"
-                        onClick={() => handleCompanySort("videoCount")}
-                      >
-                        Videos Watched
-                        {companySortBy === "videoCount" &&
-                          (companySortDirection === "asc" ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          ))}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        className="flex items-center gap-1 p-0 font-semibold"
-                        onClick={() => handleCompanySort("totalWatchTime")}
-                      >
-                        Total Watch Time
-                        {companySortBy === "totalWatchTime" &&
-                          (companySortDirection === "asc" ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          ))}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        className="flex items-center gap-1 p-0 font-semibold"
-                        onClick={() => handleCompanySort("averageCompletionRate")}
-                      >
-                        Avg. Completion
-                        {companySortBy === "averageCompletionRate" &&
-                          (companySortDirection === "asc" ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          ))}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        className="flex items-center gap-1 p-0 font-semibold"
-                        onClick={() => handleCompanySort("lastActive")}
-                      >
-                        Last Active
-                        {companySortBy === "lastActive" &&
-                          (companySortDirection === "asc" ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          ))}
-                      </Button>
-                    </TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredCompanies.map((company) => (
-                    <TableRow
-                      key={company.name}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => openCompanyDetails(company)}
-                    >
-                      <TableCell className="font-medium">{company.name}</TableCell>
-                      <TableCell>{company.userCount}</TableCell>
-                      <TableCell>{company.videoCount}</TableCell>
-                      <TableCell>{company.totalWatchTime}</TableCell>
-                      <TableCell>{(company.averageCompletionRate * 100).toFixed(0)}%</TableCell>
-                      <TableCell>{company.lastActive}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openCompanyDetails(company)
-                          }}
-                        >
-                          View Details
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
 
       {/* User Details Dialog */}
       <Dialog open={userDetailsOpen} onOpenChange={setUserDetailsOpen}>
@@ -1155,6 +1185,31 @@ export default function IndividualAnalyticsPage() {
                     </div>
                   </CardContent>
                 </Card>
+              </div>
+
+              {/* Download Button */}
+              <div className="flex justify-end mb-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (!selectedUser) return;
+                    const data = selectedUser.viewedVideos.map((video) => ({
+                      "Video Title": video.title,
+                      "Category": video.category || "Uncategorized",
+                      "Watch Time": video.watchTime,
+                      "Completion": video.completion,
+                      "Start Time": video.startTime || "-",
+                      "End Time": video.endTime || "-",
+                      "Last Watched": video.lastWatched,
+                    }))
+                    const ws = XLSX.utils.json_to_sheet(data)
+                    const wb = XLSX.utils.book_new()
+                    XLSX.utils.book_append_sheet(wb, ws, "Watched Videos")
+                    XLSX.writeFile(wb, `${selectedUser.name || selectedUser.email}-watched-videos.xlsx`)
+                  }}
+                >
+                  Download Excel
+                </Button>
               </div>
 
               {/* Watched Videos */}
