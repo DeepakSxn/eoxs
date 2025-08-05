@@ -37,8 +37,7 @@ interface Module {
   videos: Video[]
 }
 
-// HARDCODED MODULES COMMENTED OUT - VIDEO_ORDER
-/*
+// RESTORED HARDCODED MODULES - VIDEO_ORDER
 const VIDEO_ORDER: Record<string, string[]> = {
   Sales: [
     "Sales Module Overview",
@@ -109,12 +108,28 @@ const VIDEO_ORDER: Record<string, string[]> = {
   ],
   QA: ["Mill Certs"],
 }
-*/
 
-// HARDCODED MODULES COMMENTED OUT - MODULE_ORDER
-/*
+// Add aliased versions for categories that might have "Module" in their name
+const VIDEO_ORDER_WITH_ALIASES: Record<string, string[]> = {
+  ...VIDEO_ORDER,
+  "Sales Module ": VIDEO_ORDER.Sales,
+  "Processing": VIDEO_ORDER.Processing,
+  "Inventory": VIDEO_ORDER.Inventory,
+  "Purchase": VIDEO_ORDER.Purchase,
+  "Finance and Accounting": VIDEO_ORDER["Finance and Accounting"],
+  "Shipping and Receiving": VIDEO_ORDER["Shipping and Receiving"],
+  "CRM": VIDEO_ORDER.CRM,
+  "IT & Security": VIDEO_ORDER["IT & Security"],
+  "Advanced Analytics & Reporting": VIDEO_ORDER["Advanced Analytics & Reporting"],
+  "Master Data": VIDEO_ORDER["Master Data Management"],
+  "Contact Management": VIDEO_ORDER["Contact Management"],
+  "QA Module": VIDEO_ORDER.QA,
+}
+
+// RESTORED HARDCODED MODULES - MODULE_ORDER
+// Updated to match actual category names in the database
 const MODULE_ORDER = [
-  "Sales",
+  "Sales Module ",
   "Processing",
   "Inventory",
   "Purchase",
@@ -123,12 +138,29 @@ const MODULE_ORDER = [
   "CRM",
   "IT & Security",
   "Advanced Analytics & Reporting",
-  "Master Data Management",
-  "Toll Processing",
+  "Master Data",
   "Contact Management",
-  "QA",
+  "QA Module",
 ]
-*/
+
+// Alternative category names that might exist in the database
+const CATEGORY_ALIASES: Record<string, string> = {
+  "Sales Module": "Sales Module ",
+  "Processing Module": "Processing",
+  "Inventory Module": "Inventory",
+  "Purchase Module": "Purchase",
+  "Finance and Accounting Module": "Finance and Accounting",
+  "Shipping and Receiving Module": "Shipping and Receiving",
+  "CRM Module": "CRM",
+  "IT & Security Module": "IT & Security",
+  "Advanced Analytics & Reporting Module": "Advanced Analytics & Reporting",
+  "Master Data Management Module": "Master Data",
+  "Contact Management Module": "Contact Management",
+  "QA Module": "QA Module",
+}
+
+// Debug: Log the MODULE_ORDER for verification
+console.log("MODULE_ORDER defined as:", MODULE_ORDER)
 
 export default function Dashboard() {
   const [videos, setVideos] = useState<Video[]>([])
@@ -303,6 +335,10 @@ export default function Dashboard() {
 
       setVideos(videosWithWatchStatus)
 
+      // Debug: Log all categories found in database
+      const allCategories = [...new Set(videosWithWatchStatus.map(v => v.category))].sort()
+      console.log("All categories in database:", allCategories)
+
       // Filter out General and Miscellaneous videos for dashboard display only
       const filteredForDisplay = videosWithWatchStatus.filter(
         (video) => video.category !== "Company Introduction" && video.category !== "Miscellaneous"
@@ -355,49 +391,53 @@ export default function Dashboard() {
 
     // Add other categories as modules (except General and Miscellaneous)
     Object.entries(videosByCategory).forEach(([category, videos]) => {
-      // HARDCODED MODULES COMMENTED OUT - VIDEO_ORDER sorting disabled
+      // RESTORED HARDCODED MODULES - VIDEO_ORDER sorting enabled
       // Normalize category for lookup
-      // const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/gi, "")
-      // const normalizedCategory = normalize(category)
-      // Find the VIDEO_ORDER key that matches the normalized category
-      // const videoOrderKey = Object.keys(VIDEO_ORDER).find((key) => normalize(key) === normalizedCategory)
-      // const orderArr = videoOrderKey ? VIDEO_ORDER[videoOrderKey] : undefined
+      const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/gi, "")
+      const normalizedCategory = normalize(category)
+      // Find the VIDEO_ORDER key that matches the normalized category (including aliases)
+      const videoOrderKey = Object.keys(VIDEO_ORDER_WITH_ALIASES).find((key) => normalize(key) === normalizedCategory)
+      const orderArr = videoOrderKey ? VIDEO_ORDER_WITH_ALIASES[videoOrderKey] : undefined
       const sortedVideos = [...videos].sort((a, b) => {
-        // HARDCODED MODULES COMMENTED OUT - using simple alphabetical sort instead
-        // const orderA = orderArr?.indexOf(a.title) ?? Number.MAX_SAFE_INTEGER
-        // const orderB = orderArr?.indexOf(b.title) ?? Number.MAX_SAFE_INTEGER
-        // if (orderA !== Number.MAX_SAFE_INTEGER && orderB !== Number.MAX_SAFE_INTEGER) {
-        //   return orderA - orderB
-        // }
-        // if (orderA !== Number.MAX_SAFE_INTEGER) return -1
-        // if (orderB !== Number.MAX_SAFE_INTEGER) return 1
+        // RESTORED HARDCODED MODULES - using predefined order
+        const orderA = orderArr?.indexOf(a.title) ?? Number.MAX_SAFE_INTEGER
+        const orderB = orderArr?.indexOf(b.title) ?? Number.MAX_SAFE_INTEGER
+        if (orderA !== Number.MAX_SAFE_INTEGER && orderB !== Number.MAX_SAFE_INTEGER) {
+          return orderA - orderB
+        }
+        if (orderA !== Number.MAX_SAFE_INTEGER) return -1
+        if (orderB !== Number.MAX_SAFE_INTEGER) return 1
         return a.title.localeCompare(b.title)
       })
+      // Fix module names to avoid duplication and add proper naming
+      let moduleName = `${category} Module Overview`
+      
+      // Fix specific cases
+      if (category === "Sales Module ") {
+        moduleName = "Sales Module Overview"
+      } else if (category === "Master Data") {
+        moduleName = "Master Data Management Module Overview"
+      }
+      
       moduleArray.push({
-        name: `${category} Module Overview`,
+        name: moduleName,
         category,
         totalDuration: calculateTotalDuration(sortedVideos),
         videos: sortedVideos,
       })
     })
 
-    // HARDCODED MODULES COMMENTED OUT - MODULE_ORDER sorting disabled
+    // RESTORED HARDCODED MODULES - MODULE_ORDER sorting enabled
     // Sort modules according to MODULE_ORDER
-    // moduleArray.sort((a, b) => {
-    //   const indexA = MODULE_ORDER.findIndex(
-    //     (name) => a.category.toLowerCase().replace(/[^a-z]/gi, "") === name.toLowerCase().replace(/[^a-z]/gi, ""),
-    //   )
-    //   const indexB = MODULE_ORDER.findIndex(
-    //     (name) => b.category.toLowerCase().replace(/[^a-z]/gi, "") === name.toLowerCase().replace(/[^a-z]/gi, ""),
-    //   )
-    //   if (indexA === -1 && indexB === -1) return a.category.localeCompare(b.category)
-    //   if (indexA === -1) return 1
-    //   if (indexB === -1) return -1
-    //   return indexA - indexB
-    // })
-    
-    // Use alphabetical sorting instead since hardcoded order is commented out
-    moduleArray.sort((a, b) => a.category.localeCompare(b.category))
+    moduleArray.sort((a, b) => {
+      const indexA = MODULE_ORDER.indexOf(a.category)
+      const indexB = MODULE_ORDER.indexOf(b.category)
+      
+      if (indexA === -1 && indexB === -1) return a.category.localeCompare(b.category)
+      if (indexA === -1) return 1
+      if (indexB === -1) return -1
+      return indexA - indexB
+    })
 
     // Set all modules as collapsed by default
     setExpandedModules([])
@@ -454,7 +494,7 @@ export default function Dashboard() {
       miscVideos.forEach((v) => combinedVideoIds.add(v.id))
       AiTool.forEach((v) => combinedVideoIds.add(v.id))
 
-      // HARDCODED MODULES COMMENTED OUT - getOrderedVideos simplified
+      // RESTORED HARDCODED MODULES - getOrderedVideos with predefined order
       // Helper to get canonical order of all videos
       const getOrderedVideos = () => {
         const ordered: Video[] = []
@@ -462,37 +502,42 @@ export default function Dashboard() {
         generalVideos.forEach((v) => {
           if (combinedVideoIds.has(v.id)) ordered.push(v)
         })
-        // 2. HARDCODED MODULE ORDER DISABLED - using simple category grouping instead
-        // By module order
-        // MODULE_ORDER.forEach((moduleName) => {
-        //   const videoTitles = VIDEO_ORDER[moduleName]
-        //   if (videoTitles) {
-        //     videoTitles.forEach((title) => {
-        //       const video = videos.find((v) => v.title === title && v.category === moduleName)
-        //       if (video && combinedVideoIds.has(video.id) && !ordered.some((o) => o.id === video.id)) {
-        //         ordered.push(video)
-        //       }
-        //     })
-        //   }
-        //   // Add any videos in this category not in VIDEO_ORDER
-        //   videos
-        //     .filter(
-        //       (v) =>
-        //         v.category === moduleName &&
-        //         combinedVideoIds.has(v.id) &&
-        //         (!videoTitles || !videoTitles.includes(v.title)),
-        //     )
-        //     .forEach((v) => {
-        //       if (!ordered.some((o) => o.id === v.id)) ordered.push(v)
-        //     })
-        // })
-        
-        // Simple approach: add all selected videos by category (alphabetical)
-        const categories = [...new Set(videos.map(v => v.category))].sort()
-        categories.forEach((category) => {
+        // 2. By module order using MODULE_ORDER
+        MODULE_ORDER.forEach((moduleName) => {
+          // Try to find video titles for this module (including aliases)
+          let videoTitles = VIDEO_ORDER[moduleName]
+          if (!videoTitles) {
+            // Try to find in aliases
+            const aliasedCategory = Object.keys(CATEGORY_ALIASES).find(key => CATEGORY_ALIASES[key] === moduleName)
+            if (aliasedCategory) {
+              videoTitles = VIDEO_ORDER_WITH_ALIASES[aliasedCategory]
+            }
+          }
+          
+          if (videoTitles) {
+            videoTitles.forEach((title) => {
+              // Look for videos in both the original category and aliased categories
+              const video = videos.find((v) => {
+                const isTitleMatch = v.title === title
+                const isCategoryMatch = v.category === moduleName || 
+                                      (CATEGORY_ALIASES[v.category] === moduleName)
+                return isTitleMatch && isCategoryMatch
+              })
+              if (video && combinedVideoIds.has(video.id) && !ordered.some((o) => o.id === video.id)) {
+                ordered.push(video)
+              }
+            })
+          }
+          // Add any videos in this category not in VIDEO_ORDER
           videos
-            .filter((v) => v.category === category && combinedVideoIds.has(v.id))
-            .sort((a, b) => a.title.localeCompare(b.title))
+            .filter(
+              (v) => {
+                const isCategoryMatch = v.category === moduleName || 
+                                      (CATEGORY_ALIASES[v.category] === moduleName)
+                return isCategoryMatch && combinedVideoIds.has(v.id) &&
+                       (!videoTitles || !videoTitles.includes(v.title))
+              }
+            )
             .forEach((v) => {
               if (!ordered.some((o) => o.id === v.id)) ordered.push(v)
             })
