@@ -446,7 +446,7 @@ export default function VideoPlayerPage() {
         id: doc.id,
         ...doc.data(),
         thumbnail: doc.data().publicId
-          ? `https://res.cloudinary.com/dh3bnbq9t/video/upload/${doc.data().publicId}.jpg`
+          ? `https://res.cloudinary.com/dnx1sl0nq/video/upload/${doc.data().publicId}.jpg`
           : "/placeholder.svg?height=180&width=320",
         description: doc.data().description || "No description available",
         category: doc.data().category || "Uncategorized",

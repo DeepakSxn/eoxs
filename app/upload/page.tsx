@@ -143,7 +143,7 @@ export default function UploadPage() {
       formData.append("file", file)
       formData.append("upload_preset", "eoxsDemoTool")
 
-      const response = await fetch(`https://api.cloudinary.com/v1_1/dh3bnbq9t/video/upload`, {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/dnx1sl0nq/video/upload`, {
         method: "POST",
         body: formData,
       })
@@ -166,7 +166,7 @@ export default function UploadPage() {
         tags,
         videoUrl: data.secure_url,
         publicId: data.public_id,
-        thumbnailUrl: `https://res.cloudinary.com/dh3bnbq9t/video/upload/${data.public_id}.jpg`,
+        thumbnailUrl: `https://res.cloudinary.com/dnx1sl0nq/video/upload/${data.public_id}.jpg`,
         createdAt: serverTimestamp(),
       })
 

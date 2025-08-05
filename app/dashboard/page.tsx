@@ -266,7 +266,7 @@ export default function Dashboard() {
           ...data,
           thumbnail: getSafeUrl(
             data.publicId
-              ? `https://res.cloudinary.com/dh3bnbq9t/video/upload/${data.publicId}.jpg`
+              ? `https://res.cloudinary.com/dnx1sl0nq/video/upload/${data.publicId}.jpg`
               : undefined,
           ),
           description: data.description || "-",
