@@ -170,16 +170,30 @@ export default function UploadPage() {
       const formData = new FormData()
       formData.append("file", file)
       formData.append("upload_preset", "eoxsDemoTool")
+      formData.append("resource_type", "video")
+      
+      console.log("Uploading to Cloudinary with preset:", "eoxsDemoTool")
 
-      const response = await fetch(`https://api.cloudinary.com/v1_1/dnx1sl0nqvideo/upload`, {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/dnx1sl0nq/video/upload`, {
         method: "POST",
         body: formData,
       })
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error("Cloudinary upload failed:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        })
+        throw new Error(`Cloudinary upload failed: ${response.status} ${response.statusText}`)
+      }
+
       const data = await response.json()
 
       if (!data.secure_url) {
-        throw new Error("Failed to upload video to Cloudinary.")
+        console.error("Cloudinary response missing secure_url:", data)
+        throw new Error("Failed to upload video to Cloudinary - no secure URL returned.")
       }
 
       clearInterval(progressInterval)
