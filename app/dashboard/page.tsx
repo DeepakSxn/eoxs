@@ -37,6 +37,8 @@ interface Module {
   videos: Video[]
 }
 
+// HARDCODED MODULES COMMENTED OUT - VIDEO_ORDER
+/*
 const VIDEO_ORDER: Record<string, string[]> = {
   Sales: [
     "Sales Module Overview",
@@ -107,7 +109,10 @@ const VIDEO_ORDER: Record<string, string[]> = {
   ],
   QA: ["Mill Certs"],
 }
+*/
 
+// HARDCODED MODULES COMMENTED OUT - MODULE_ORDER
+/*
 const MODULE_ORDER = [
   "Sales",
   "Processing",
@@ -123,6 +128,7 @@ const MODULE_ORDER = [
   "Contact Management",
   "QA",
 ]
+*/
 
 export default function Dashboard() {
   const [videos, setVideos] = useState<Video[]>([])
@@ -242,7 +248,9 @@ export default function Dashboard() {
         return
       }
 
+      // HARDCODED MODULES COMMENTED OUT - companyMapping
       // Mock company data assignment - in a real app, this would come from your Firestore database
+      /*
       const companyMapping: Record<string, string> = {
         "Sales": "eoxs",
         "Processing": "steel_inc", 
@@ -257,24 +265,25 @@ export default function Dashboard() {
         "Contact Management": "eoxs",
         "QA": "metal_works"
       }
+      */
 
-      const videoList = videoSnapshot.docs.map((doc) => {
-        const data = doc.data();
-        const category = data.category || "Uncategorized";
-        return {
-          id: doc.id,
-          ...data,
-          thumbnail: getSafeUrl(
-            data.publicId
-              ? `https://res.cloudinary.com/dnx1sl0nq/video/upload/${data.publicId}.jpg`
-              : undefined,
-          ),
-          description: data.description || "-",
-          category: category,
-          // Assign company based on category
-          company: companyMapping[category] || "eoxs"
-        };
-      }) as unknown as Video[]
+              const videoList = videoSnapshot.docs.map((doc) => {
+          const data = doc.data();
+          const category = data.category || "Uncategorized";
+          return {
+            id: doc.id,
+            ...data,
+            thumbnail: getSafeUrl(
+              data.publicId
+                ? `https://res.cloudinary.com/dnx1sl0nq/video/upload/${data.publicId}.jpg`
+                : undefined,
+            ),
+            description: data.description || "-",
+            category: category,
+            // Assign company based on category (hardcoded mapping commented out)
+            company: "eoxs" // Default company since hardcoded mapping is commented out
+          };
+        }) as unknown as Video[]
 
       // Fetch watch history to mark watched videos
       const watchHistoryQuery = query(
@@ -346,20 +355,22 @@ export default function Dashboard() {
 
     // Add other categories as modules (except General and Miscellaneous)
     Object.entries(videosByCategory).forEach(([category, videos]) => {
+      // HARDCODED MODULES COMMENTED OUT - VIDEO_ORDER sorting disabled
       // Normalize category for lookup
-      const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/gi, "")
-      const normalizedCategory = normalize(category)
+      // const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/gi, "")
+      // const normalizedCategory = normalize(category)
       // Find the VIDEO_ORDER key that matches the normalized category
-      const videoOrderKey = Object.keys(VIDEO_ORDER).find((key) => normalize(key) === normalizedCategory)
-      const orderArr = videoOrderKey ? VIDEO_ORDER[videoOrderKey] : undefined
+      // const videoOrderKey = Object.keys(VIDEO_ORDER).find((key) => normalize(key) === normalizedCategory)
+      // const orderArr = videoOrderKey ? VIDEO_ORDER[videoOrderKey] : undefined
       const sortedVideos = [...videos].sort((a, b) => {
-        const orderA = orderArr?.indexOf(a.title) ?? Number.MAX_SAFE_INTEGER
-        const orderB = orderArr?.indexOf(b.title) ?? Number.MAX_SAFE_INTEGER
-        if (orderA !== Number.MAX_SAFE_INTEGER && orderB !== Number.MAX_SAFE_INTEGER) {
-          return orderA - orderB
-        }
-        if (orderA !== Number.MAX_SAFE_INTEGER) return -1
-        if (orderB !== Number.MAX_SAFE_INTEGER) return 1
+        // HARDCODED MODULES COMMENTED OUT - using simple alphabetical sort instead
+        // const orderA = orderArr?.indexOf(a.title) ?? Number.MAX_SAFE_INTEGER
+        // const orderB = orderArr?.indexOf(b.title) ?? Number.MAX_SAFE_INTEGER
+        // if (orderA !== Number.MAX_SAFE_INTEGER && orderB !== Number.MAX_SAFE_INTEGER) {
+        //   return orderA - orderB
+        // }
+        // if (orderA !== Number.MAX_SAFE_INTEGER) return -1
+        // if (orderB !== Number.MAX_SAFE_INTEGER) return 1
         return a.title.localeCompare(b.title)
       })
       moduleArray.push({
@@ -370,19 +381,23 @@ export default function Dashboard() {
       })
     })
 
+    // HARDCODED MODULES COMMENTED OUT - MODULE_ORDER sorting disabled
     // Sort modules according to MODULE_ORDER
-    moduleArray.sort((a, b) => {
-      const indexA = MODULE_ORDER.findIndex(
-        (name) => a.category.toLowerCase().replace(/[^a-z]/gi, "") === name.toLowerCase().replace(/[^a-z]/gi, ""),
-      )
-      const indexB = MODULE_ORDER.findIndex(
-        (name) => b.category.toLowerCase().replace(/[^a-z]/gi, "") === name.toLowerCase().replace(/[^a-z]/gi, ""),
-      )
-      if (indexA === -1 && indexB === -1) return a.category.localeCompare(b.category)
-      if (indexA === -1) return 1
-      if (indexB === -1) return -1
-      return indexA - indexB
-    })
+    // moduleArray.sort((a, b) => {
+    //   const indexA = MODULE_ORDER.findIndex(
+    //     (name) => a.category.toLowerCase().replace(/[^a-z]/gi, "") === name.toLowerCase().replace(/[^a-z]/gi, ""),
+    //   )
+    //   const indexB = MODULE_ORDER.findIndex(
+    //     (name) => b.category.toLowerCase().replace(/[^a-z]/gi, "") === name.toLowerCase().replace(/[^a-z]/gi, ""),
+    //   )
+    //   if (indexA === -1 && indexB === -1) return a.category.localeCompare(b.category)
+    //   if (indexA === -1) return 1
+    //   if (indexB === -1) return -1
+    //   return indexA - indexB
+    // })
+    
+    // Use alphabetical sorting instead since hardcoded order is commented out
+    moduleArray.sort((a, b) => a.category.localeCompare(b.category))
 
     // Set all modules as collapsed by default
     setExpandedModules([])
@@ -439,6 +454,7 @@ export default function Dashboard() {
       miscVideos.forEach((v) => combinedVideoIds.add(v.id))
       AiTool.forEach((v) => combinedVideoIds.add(v.id))
 
+      // HARDCODED MODULES COMMENTED OUT - getOrderedVideos simplified
       // Helper to get canonical order of all videos
       const getOrderedVideos = () => {
         const ordered: Video[] = []
@@ -446,29 +462,42 @@ export default function Dashboard() {
         generalVideos.forEach((v) => {
           if (combinedVideoIds.has(v.id)) ordered.push(v)
         })
-        // 2. By module order
-        MODULE_ORDER.forEach((moduleName) => {
-          const videoTitles = VIDEO_ORDER[moduleName]
-          if (videoTitles) {
-            videoTitles.forEach((title) => {
-              const video = videos.find((v) => v.title === title && v.category === moduleName)
-              if (video && combinedVideoIds.has(video.id) && !ordered.some((o) => o.id === video.id)) {
-                ordered.push(video)
-              }
-            })
-          }
-          // Add any videos in this category not in VIDEO_ORDER
+        // 2. HARDCODED MODULE ORDER DISABLED - using simple category grouping instead
+        // By module order
+        // MODULE_ORDER.forEach((moduleName) => {
+        //   const videoTitles = VIDEO_ORDER[moduleName]
+        //   if (videoTitles) {
+        //     videoTitles.forEach((title) => {
+        //       const video = videos.find((v) => v.title === title && v.category === moduleName)
+        //       if (video && combinedVideoIds.has(video.id) && !ordered.some((o) => o.id === video.id)) {
+        //         ordered.push(video)
+        //       }
+        //     })
+        //   }
+        //   // Add any videos in this category not in VIDEO_ORDER
+        //   videos
+        //     .filter(
+        //       (v) =>
+        //         v.category === moduleName &&
+        //         combinedVideoIds.has(v.id) &&
+        //         (!videoTitles || !videoTitles.includes(v.title)),
+        //     )
+        //     .forEach((v) => {
+        //       if (!ordered.some((o) => o.id === v.id)) ordered.push(v)
+        //     })
+        // })
+        
+        // Simple approach: add all selected videos by category (alphabetical)
+        const categories = [...new Set(videos.map(v => v.category))].sort()
+        categories.forEach((category) => {
           videos
-            .filter(
-              (v) =>
-                v.category === moduleName &&
-                combinedVideoIds.has(v.id) &&
-                (!videoTitles || !videoTitles.includes(v.title)),
-            )
+            .filter((v) => v.category === category && combinedVideoIds.has(v.id))
+            .sort((a, b) => a.title.localeCompare(b.title))
             .forEach((v) => {
               if (!ordered.some((o) => o.id === v.id)) ordered.push(v)
             })
         })
+        
         // 3. Miscellaneous at the end
         miscVideos.forEach((v) => {
           if (combinedVideoIds.has(v.id) && !ordered.some((o) => o.id === v.id)) ordered.push(v)
